@@ -151,7 +151,7 @@ module Bake
 						metadata = "#{receipt.fetch(:pull_request_url)}\n\nSource: #{receipt.fetch(:commit)}\nSHA256: #{receipt.fetch(:sha256)}\n"
 						Tempfile.create("release") do |file|
 							file.write(JSON.generate(
-								tag_name: tag, draft: true, target_commitish: receipt.fetch(:commit), name: "#{receipt.fetch(:name)} #{tag}",
+								tag_name: tag, draft: true, target_commitish: receipt.fetch(:commit), name: tag,
 								body: [notes, metadata].compact.join("\n")
 							))
 							file.flush

@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Use only the version tag for GitHub release titles.
+
 ## v0.1.0
 
   - Include the version's release notes in GitHub releases using `bake-releases`.
