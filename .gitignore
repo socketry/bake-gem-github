@@ -3,3 +3,4 @@
 /coverage/
 /gems.locked
 /pkg/
+/vendor/bundle/

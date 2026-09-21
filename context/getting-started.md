@@ -18,7 +18,7 @@ bundle exec bake agent:context:install
 bundle exec bake gem:github:setup:plan
 ```
 
-Setup adds three pinned workflows, `config/release.yaml`, native ruleset payloads, and `.github/RELEASING.md`. Identical reruns do nothing; conflicting existing files stop before any file is written. For later policy changes, edit the configuration and review the generated workflow/policy changes explicitly. Setup does not replace other publishers: remove conflicting release workflows during migration.
+Setup adds three pinned workflows, `config/release.yaml`, native ruleset payloads, and `.github/releasing.md`. Identical reruns do nothing; conflicting existing files stop before any file is written. For later policy changes, edit the configuration and review the generated workflow/policy changes explicitly. Setup does not replace other publishers: remove conflicting release workflows during migration.
 
 The default is two approvals with explicit administrator bypass, dismissed stale reviews, approval of the last push, strict up-to-date CI, and immutable default-branch history/release tags. These branch rules affect **all PRs** into the default branch. Ordinary administrator reviews count as one review. A human who dispatches a bot-authored PR is not its author under GitHub's native rules.
 
@@ -32,7 +32,7 @@ This command changes remote rulesets and preserves unrelated rulesets. Existing 
 
 Create a `rubygems` GitHub environment restricted to the default branch. Do not add a second routine reviewer gate. On RubyGems, an owner must configure a Trusted Publisher with the owner/repository, workflow filename **`release-publish.yaml`**, and environment **`rubygems`** shown by `doctor`. Ownership/MFA and environment/signing bootstrap are deliberate manual steps in this first implementation; `doctor` prints desired and observed GitHub settings, not a claim that RubyGems ownership or publisher trust has been verified. See [RubyGems Trusted Publishing](https://guides.rubygems.org/trusted-publishing/).
 
-If `release.cert` exists, setup enables legacy signing. Keep this public certificate in Git and install its matching **private key** as the environment secret `GEM_SIGNING_KEY`. The workflow checks the certificate validity, key match, and resulting package signatures. To opt out explicitly, pass `signing=false` during setup. No long-lived RubyGems publishing key is required.
+If `release.cert` exists, setup enables legacy signing. Keep this public certificate in Git and install its matching **private key** as the Actions secret `GEM_SIGNING_KEY`. Use the `rubygems` environment or an organization secret available to the release repositories. The workflow checks the certificate validity, key match, and resulting package signatures. To opt out explicitly, pass `signing=false` during setup. No long-lived RubyGems publishing key is required.
 
 Before enabling releases, confirm two people can administer the repository and recover the RubyGems account/signing key, and enough maintainers can satisfy the review policy. Pilot on one low-risk gem and prove publishing, administrator bypass, fork merges, and recovery before rolling out broadly. No organization-wide migration or live publisher setup is performed by these tasks.
 

@@ -5,7 +5,7 @@ name: Publish release
 on:
   pull_request_target:
     types: [closed]
-    branches: [<%= branch.to_json %>]
+    branches: ["main"]
 
 permissions:
   contents: read
@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
       - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1
         with:
-          ruby-version: <%= ruby.to_json %>
+          ruby-version: "3.4"
           bundler-cache: true
       - id: inspect
         env:
@@ -59,16 +59,14 @@ jobs:
           persist-credentials: false
       - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1
         with:
-          ruby-version: <%= ruby.to_json %>
+          ruby-version: "3.4"
           rubygems: '4.0.21'
           bundler-cache: true
       - name: Build or restore artifact
         id: build
         env:
           GH_TOKEN: ${{ github.token }}
-<% if signing -%>
           GEM_SIGNING_KEY: ${{ secrets.GEM_SIGNING_KEY }}
-<% end -%>
         run: bundle exec bake gem:github:release:build
       - name: Sign RubyGems attestation
         if: steps.build.outputs.restored != 'true'

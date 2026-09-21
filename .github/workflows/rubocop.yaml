@@ -1,0 +1,20 @@
+name: RuboCop
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: RuboCop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - name: Check Ruby and documentation style
+        timeout-minutes: 10
+        run: bundle exec rubocop

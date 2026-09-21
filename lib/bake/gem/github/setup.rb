@@ -33,7 +33,7 @@ module Bake
 					self.class.rules(config).each do |name, rule|
 						files[".github/release-rules/#{name}.json"] = JSON.pretty_generate(rule) + "\n"
 					end
-					files[".github/RELEASING.md"] = File.read(File.join(templates, "RELEASING.md"))
+					files[".github/releasing.md"] = File.read(File.join(templates, "releasing.md"))
 					conflicts = files.keys.select{|name| File.exist?(File.join(@root, name)) && File.read(File.join(@root, name)) != files[name]}
 					raise "Existing files differ; review them before regenerating: #{conflicts.join(', ')}" unless conflicts.empty?
 					files.each do |name, content|
