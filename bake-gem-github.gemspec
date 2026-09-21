@@ -9,7 +9,9 @@ Gem::Specification.new do |spec|
 	spec.authors = ["Samuel Williams"]
 	spec.license = "MIT"
 	spec.homepage = "https://github.com/socketry/bake-gem-github"
-	spec.files = Dir.glob(["{bake,context,lib,templates}/**/*", "*.md"], base: __dir__)
+	spec.cert_chain = ["release.cert"]
+	spec.signing_key = File.expand_path("~/.gem/socketry-release.pem")
+	spec.files = Dir.glob(["{bake,context,lib,templates}/**/*", "*.md", "release.cert"], base: __dir__)
 	spec.required_ruby_version = ">= 3.3"
 	spec.add_dependency "bake-gem", ">= 0.15.0"
 	spec.add_dependency "net-http"

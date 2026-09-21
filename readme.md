@@ -8,3 +8,5 @@ Reviewed GitHub releases for Ruby gems, using `bake-gem` for branch preparation,
 - `gem:github:release:resume run=ID`: retry with the original artifact.
 
 Read [the setup, release and recovery guide](guides/getting-started/readme.md) before enabling publishing. Context is distributed through `agent-context`. This initial implementation requires `bake-gem` 0.15 or later and a live pilot before wider rollout.
+
+For this gem's releases, follow [the maintainer instructions](.github/releasing.md). Release workflows use the source checkout through Bundler's `gemspec` dependency, so the first release does not require an already published copy of `bake-gem-github`.

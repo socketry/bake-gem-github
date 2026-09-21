@@ -1,0 +1,15 @@
+---
+schema: 1
+repository: socketry/bake-gem-github
+branch: main
+checks:
+- Test Ruby 3.3
+- Test Ruby 3.4
+- Test Ruby 4.0
+- RuboCop
+- Documentation coverage
+- Release validation
+approvals: 2
+signing: true
+ruby: '3.4'
+environment: rubygems

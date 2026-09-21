@@ -5,5 +5,6 @@
 
 # Regenerate documentation when preparing a release.
 def after_gem_release_version_increment(version)
+	context["releases:update"].call(version)
 	context["utopia:project:agent:context:update"].call
 end

@@ -1,0 +1,49 @@
+{
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/heads/main"
+      ],
+      "exclude": []
+    }
+  },
+  "name": "Gem release checks",
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "pull_request"
+    }
+  ],
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Test Ruby 3.3"
+          },
+          {
+            "context": "Test Ruby 3.4"
+          },
+          {
+            "context": "Test Ruby 4.0"
+          },
+          {
+            "context": "RuboCop"
+          },
+          {
+            "context": "Documentation coverage"
+          },
+          {
+            "context": "Release validation"
+          }
+        ]
+      }
+    }
+  ]
+}
