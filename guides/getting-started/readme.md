@@ -75,6 +75,8 @@ After merge/squash, the publishing workflow verifies GitHub's merged PR record a
 
 The workflow retains the gem, receipt and attestations before obtaining RubyGems publishing credentials. It verifies both attestations, checks the uploaded bytes and registry bundle, then pushes the specific version tag and creates the GitHub release. Existing tags/assets are checked and never overwritten. The old `after_gem_release` GitHub hook is not called by this pipeline, so there is one owner for release creation.
 
+The draft release description includes the exact version's notes from `releases.md` in the merged release checkout, followed by the PR URL, source commit, and gem digest. Notes are extracted using `bake-releases`; a missing or empty section leaves the metadata as the description. Retries preserve the existing release description.
+
 ``` bash
 set -e
 for file in example-1.2.3.gem release.json; do

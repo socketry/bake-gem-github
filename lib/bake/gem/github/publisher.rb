@@ -4,6 +4,7 @@
 # Copyright, 2026, by Samuel Williams.
 
 require_relative "project"
+require "bake/releases"
 require "digest"
 require "net/http"
 require "openssl"
@@ -146,10 +147,12 @@ module Bake
 					tag = "v#{receipt.fetch(:version)}"
 					release = github_release(tag)
 					unless release
+						notes = Bake::Releases.notes(tag, path: File.join(@root, "releases.md"))
+						metadata = "#{receipt.fetch(:pull_request_url)}\n\nSource: #{receipt.fetch(:commit)}\nSHA256: #{receipt.fetch(:sha256)}\n"
 						Tempfile.create("release") do |file|
 							file.write(JSON.generate(
 								tag_name: tag, draft: true, target_commitish: receipt.fetch(:commit), name: "#{receipt.fetch(:name)} #{tag}",
-								body: "#{receipt.fetch(:pull_request_url)}\n\nSource: #{receipt.fetch(:commit)}\nSHA256: #{receipt.fetch(:sha256)}\n\nSee releases.md at the release tag for release notes.\n"
+								body: [notes, metadata].compact.join("\n")
 							))
 							file.flush
 							# The release list can remain stale after a successful creation:
