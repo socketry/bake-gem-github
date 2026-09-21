@@ -3,6 +3,8 @@
 ## Unreleased
 
   - Stop generating `.github/releasing.md`; release instructions are maintained in the shared guide and agent context.
+  - Resume interrupted release preparation and explicitly refresh stale release PRs while preserving their previous commits.
+  - Preserve all release files in one archive before individual asset uploads, so reruns can recover interrupted drafts.
 
 ## v0.2.0
 
@@ -12,7 +14,6 @@
 
   - Include the version's release notes in GitHub releases using `bake-releases`.
   - Update generated release files in the working tree with `gem:github:setup:update`.
-  - Resume interrupted release preparation and explicitly refresh stale release PRs while preserving their previous commits.
 
 ## v0.0.5
 
