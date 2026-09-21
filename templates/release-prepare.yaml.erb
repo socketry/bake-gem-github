@@ -39,6 +39,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BUMP: ${{ inputs.bump }}
         run: |
+          # GitHub.com's shared Actions bot ID; this identity is not for GitHub Enterprise Server.
+          # https://github.com/actions/checkout#push-a-commit-using-the-built-in-token
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           case "$BUMP" in patch|minor|major) ;; *) exit 1 ;; esac
