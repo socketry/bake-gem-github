@@ -1,0 +1,15 @@
+# frozen_string_literal: true
+
+# Released under the MIT License.
+# Copyright, 2026, by Samuel Williams.
+
+# Inspect external settings before applying the generated policy.
+def plan
+	context.lookup("gem:github:doctor").call
+end
+
+# Apply the four managed rulesets using the current gh administrator credentials.
+def apply
+	require_relative "../../../lib/bake/gem/github/project"
+	Bake::Gem::GitHub::Project.new(context.root).apply
+end

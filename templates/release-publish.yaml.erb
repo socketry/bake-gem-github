@@ -1,0 +1,101 @@
+name: Publish release
+
+# Only merged source is executed. Validation of unmerged PRs lives in its own
+# read-only pull_request workflow. This trigger also supports reviewed fork PRs.
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [<%= branch.to_json %>]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+env:
+  BUNDLE_WITH: maintenance
+  RELEASE_PR: ${{ github.event.pull_request.number }}
+
+jobs:
+  inspect:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.inspect.outputs.release }}
+      commit: ${{ steps.inspect.outputs.commit }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1
+        with:
+          ruby-version: <%= ruby.to_json %>
+          bundler-cache: true
+      - id: inspect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bundle exec bake gem:github:release:resolve
+
+  publish:
+    needs: inspect
+    if: needs.inspect.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    environment: rubygems
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.inspect.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1
+        with:
+          ruby-version: <%= ruby.to_json %>
+          rubygems: '4.0.21'
+          bundler-cache: true
+      - name: Build or restore artifact
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+<% if signing -%>
+          GEM_SIGNING_KEY: ${{ secrets.GEM_SIGNING_KEY }}
+<% end -%>
+        run: bundle exec bake gem:github:release:build
+      - name: Sign RubyGems attestation
+        if: steps.build.outputs.restored != 'true'
+        env:
+          PACKAGE: ${{ steps.build.outputs.package }}
+        run: gem exec sigstore-cli:0.2.3 sign "$PACKAGE" --bundle "$PACKAGE.sigstore.json"
+      - name: Attest exact source and artifact
+        if: steps.build.outputs.restored != 'true'
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ steps.build.outputs.package }}
+          predicate-type: https://slsa.dev/provenance/v1
+          predicate-path: pkg/provenance.json
+      - name: Retain provenance bundle
+        if: steps.build.outputs.restored != 'true'
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE_PATH" pkg/provenance.sigstore.json
+      - name: Preserve release before upload
+        if: steps.build.outputs.restored != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.build.outputs.artifact }}
+          path: pkg/
+          if-no-files-found: error
+          retention-days: 90
+      - uses: rubygems/configure-rubygems-credentials@2a7221c7c44c30ebc68eda38fa25c60b918245c7
+      - name: Verify, publish, and finalize
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bundle exec bake gem:github:release:publish
