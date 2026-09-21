@@ -3,6 +3,7 @@
 # Released under the MIT License.
 # Copyright, 2026, by Samuel Williams.
 
+require "sus/shared"
 require "sus/fixtures/temporary_directory_context"
 require "sus/fixtures/isolated_ruby_context"
 require "bake/gem/github/setup"
@@ -10,7 +11,7 @@ require "bake/gem/github/setup"
 module Bake
 	module Gem
 		module GitHub
-			module RepositoryContext
+			RepositoryContext = Sus::Shared("a gem repository") do
 				include Sus::Fixtures::TemporaryDirectoryContext
 				include Sus::Fixtures::IsolatedRubyContext
 				
@@ -24,8 +25,7 @@ module Bake
 					output.strip
 				end
 				
-				def before
-					super
+				before do
 					FileUtils.mkdir_p(File.join(repository, "lib/example"))
 					File.write(File.join(repository, "lib/example/version.rb"), "module Example; VERSION = \"1.0.0\"; end\n")
 					File.write(File.join(repository, "example.gemspec"), <<~RUBY)

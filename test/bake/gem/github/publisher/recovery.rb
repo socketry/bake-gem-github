@@ -5,6 +5,7 @@
 
 require "bake/gem/github/recovery_publisher"
 require "sus/fixtures/temporary_directory_context"
+require "bake/context"
 
 describe "Publication recovery" do
 	include Sus::Fixtures::TemporaryDirectoryContext
@@ -24,7 +25,8 @@ describe "Publication recovery" do
 	def restore
 		FileUtils.rm_rf(File.join(@root, "pkg"))
 		expect(ENV).to receive(:fetch).with("GITHUB_RUN_ID").and_return("123")
-		@publisher.build(42)
+		expect(Bake::Gem::GitHub::Publisher).to receive(:new).with(root).and_return(@publisher)
+		Bake::Context.load(root).call("gem:github:release:build", "number=42")
 	end
 	
 	it "resumes finalization after upload without uploading or rebuilding again" do
@@ -32,7 +34,8 @@ describe "Publication recovery" do
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /GitHub unavailable/)
 		@publisher.fail_release = false
 		restore
-		@publisher.publish(42)
+		expect(Bake::Gem::GitHub::Publisher).to receive(:new).with(root).and_return(@publisher)
+		Bake::Context.load(root).call("gem:github:release:publish", "number=42")
 		uploads = @publisher.commands.select{|args| args[0, 2] == ["gem", "push"]}
 		expect(uploads.size).to be == 1
 		expect(uploads.first).to be(:include?, "--attestation")

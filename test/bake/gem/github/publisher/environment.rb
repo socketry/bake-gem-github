@@ -66,4 +66,18 @@ describe Bake::Gem::GitHub::Publisher do
 		RUBY
 		expect(result).to be == {arguments: ["gem", "push", "example.gem"], gemfile: nil, directory: File.realpath(repository), restored: true}
 	end
+	
+	it "runs gem commands from an unbundled Ruby process" do
+		# Remove Bundler's startup hook while retaining other inherited hooks:
+		environment = {"RUBYOPT" => ENV["RUBYOPT"]&.gsub(/-r\S*bundler\/setup\s*/, ""), "BUNDLER_SETUP" => nil}
+		result = isolated_ruby(<<~'RUBY', chdir: repository, env: environment, requires: [File.join(::Gem.loaded_specs.fetch("bake-gem-github").full_gem_path, "lib/bake/gem/github/publisher")])
+			raise "Bundler is still loaded" if defined?(Bundler)
+			publisher = Bake::Gem::GitHub::Publisher.new(Dir.pwd)
+			def publisher.system(*arguments, **options)
+				{arguments: arguments, directory: options[:chdir]}
+			end
+			publisher.send(:gem_command, "push", "example.gem")
+		RUBY
+		expect(result).to be == {arguments: ["gem", "push", "example.gem"], directory: File.realpath(repository)}
+	end
 end

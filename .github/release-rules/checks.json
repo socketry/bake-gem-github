@@ -37,7 +37,13 @@
             "context": "RuboCop"
           },
           {
-            "context": "Documentation coverage"
+            "context": "ruby on ubuntu"
+          },
+          {
+            "context": "ruby on macos"
+          },
+          {
+            "context": "validate"
           },
           {
             "context": "Release validation"
