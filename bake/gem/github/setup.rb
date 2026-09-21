@@ -13,3 +13,9 @@ def apply
 	require_relative "../../../lib/bake/gem/github/project"
 	Bake::Gem::GitHub::Project.new(context.root).apply
 end
+
+# Write a reviewable update patch using config/release.yaml and the installed templates.
+def update
+	require_relative "../../../lib/bake/gem/github/setup"
+	Bake::Gem::GitHub::Setup.new(context.root).update
+end

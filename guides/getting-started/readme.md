@@ -18,7 +18,19 @@ bundle exec bake agent:context:install
 bundle exec bake gem:github:setup:plan
 ```
 
-Setup adds three pinned workflows, `config/release.yaml`, native ruleset payloads, and `.github/releasing.md`. Identical reruns do nothing; conflicting existing files stop before any file is written. For later policy changes, edit the configuration and review the generated workflow/policy changes explicitly. Setup does not replace other publishers: remove conflicting release workflows during migration.
+Setup adds three pinned workflows, `config/release.yaml`, native ruleset payloads, and `.github/releasing.md`. Identical reruns do nothing; conflicting existing files stop before any file is written. Setup does not replace other publishers: remove conflicting release workflows during migration.
+
+To adopt template fixes after upgrading the gem, or change policy, edit `config/release.yaml` as needed and generate an update patch:
+
+``` bash
+bundle exec bake gem:github:setup:update
+cat pkg/release-setup.patch
+git apply --check pkg/release-setup.patch
+git apply pkg/release-setup.patch
+git diff
+```
+
+The task leaves repository files untouched and writes only `pkg/release-setup.patch`. The patch proposes the current templates, policy payloads, configuration formatting, and maintainer instructions. It includes any differences from repository customizations: inspect every hunk, remove unwanted hunks or apply selected changes manually, then commit the result through a PR. Repeating the task after applying all changes produces an empty patch. Intentionally retained customizations remain visible on later updates. Apply remote rulesets only after the corresponding workflows are merged and their checks are running.
 
 The default is two approvals with explicit administrator bypass, dismissed stale reviews, approval of the last push, strict up-to-date CI, and immutable default-branch history/release tags. These branch rules affect **all PRs** into the default branch. Ordinary administrator reviews count as one review. A human who dispatches a bot-authored PR is not its author under GitHub's native rules.
 
