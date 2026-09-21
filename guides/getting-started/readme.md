@@ -1,6 +1,6 @@
 # GitHub Releases
 
-This guide sets up reviewed Ruby gem releases with `bake-gem-github`, native GitHub rules, RubyGems Trusted Publishing, and retained release artifacts.
+This guide explains how to set up reviewed Ruby gem releases with `bake-gem-github`, native GitHub rules, RubyGems Trusted Publishing, and retained release artifacts.
 
 ## Installation
 
