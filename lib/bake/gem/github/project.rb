@@ -33,7 +33,7 @@ module Bake
 				end
 				
 				# Prepare a release through core Bake tasks, then push and create its pull request.
-				def prepare(context, bump)
+				def prepare(context, bump, refresh: false)
 					Release::BUMPS.fetch(bump)
 					helper = Helper.new(@root)
 					helper.guard_clean
@@ -41,19 +41,45 @@ module Bake
 					raise "Prepare releases from #{branch}." unless helper.current_branch == branch
 					system("git", "fetch", "origin", branch, "--tags", chdir: @root)
 					raise "Local branch differs from origin/#{branch}." unless @release.resolve("HEAD") == @release.resolve("origin/#{branch}")
-					pulls = JSON.parse(readlines("gh", "pr", "list", "--repo", @repository, "--base", branch, "--state", "open", "--json", "headRefName,url", "--limit", "1000", chdir: @root).join)
-					if existing = pulls.find{|pr| pr.fetch("headRefName").start_with?("releases/v")}
-						return existing.fetch("url")
-					end
+					pulls = JSON.parse(readlines("gh", "pr", "list", "--repo", @repository, "--base", branch, "--state", "open", "--json", "headRefName,url,isCrossRepository", "--limit", "1000", chdir: @root).join)
+					pulls = pulls.select{|pr| !pr["isCrossRepository"] && pr.fetch("headRefName").start_with?("releases/v")}
+					raise "Multiple release PRs are open; select one before preparing another release." if pulls.size > 1
+					existing = pulls.first
+					version = Version.new(helper.gemspec.version.segments, nil).increment(Release::BUMPS.fetch(bump)).join
+					name = "releases/v#{version}"
+					raise "Existing release PR uses #{existing.fetch('headRefName')}; use its bump type or close it first." if existing && existing.fetch("headRefName") != name
 					base = @release.resolve("HEAD")
-					result = context.lookup("gem:release:branch:#{bump}").call
-					@release.validate(base: base)
-					system("git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "--set-upstream", "origin", result.fetch(:branch), chdir: @root)
-					body = "Release #{helper.gemspec.name} #{result.fetch(:version)}.\n\nPrepared from #{base}. The complete release tree is regenerated during validation. Merging publishes the resulting commit through release-publish.yaml after native reviews and required CI (or explicit administrator bypass).\n"
+					ref = "refs/heads/#{name}"
+					remote = readlines("git", "ls-remote", "--heads", "origin", ref, chdir: @root).first
+					if remote
+						system("git", "fetch", "origin", ref, chdir: @root)
+						remote = @release.resolve("FETCH_HEAD")
+					end
+					candidate = remote
+					if !candidate && readlines("git", "branch", "--list", name, chdir: @root).any?
+						candidate = @release.resolve(ref)
+					end
+					if candidate && refresh
+						# Preserve the complete previous tree before replacing the release branch:
+						backup = "refs/heads/release-backups/v#{version}/#{candidate}"
+						push("#{candidate}:#{backup}")
+						candidate = @release.worktree(base) do |path|
+							@release.bake(path, "gem:release:version:#{bump}")
+							readlines("git", "rev-parse", "HEAD", chdir: path).join.strip
+						end
+					elsif !candidate
+						context.lookup("gem:release:branch:#{bump}").call
+						candidate = @release.resolve("HEAD")
+					end
+					metadata = @release.validate(base: base, candidate: candidate)
+					raise "Release branch does not contain the requested version #{version}." unless metadata.fetch(:version) == version
+					push("--force-with-lease=#{ref}:#{remote}", "#{candidate}:#{ref}")
+					return existing.fetch("url") if existing
+					body = "Release #{helper.gemspec.name} #{version}.\n\nPrepared from #{base}. The complete release tree is regenerated during validation. Merging publishes the resulting commit through release-publish.yaml after native reviews and required CI (or explicit administrator bypass).\n"
 					Tempfile.create("release-pr") do |file|
 						file.write(body)
 						file.flush
-						readlines("gh", "pr", "create", "--repo", @repository, "--base", branch, "--head", result.fetch(:branch), "--title", "Release v#{result.fetch(:version)}", "--body-file", file.path, chdir: @root).join.strip
+						readlines("gh", "pr", "create", "--repo", @repository, "--base", branch, "--head", name, "--title", "Release v#{version}", "--body-file", file.path, chdir: @root).join.strip
 					end
 				end
 				
@@ -104,6 +130,12 @@ module Bake
 							system("gh", "api", path, "--method", current ? "PUT" : "POST", "--input", file.path, chdir: @root)
 						end
 					end
+				end
+				
+				private
+				
+				def push(*arguments)
+					system("git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "origin", *arguments, chdir: @root)
 				end
 			end
 		end

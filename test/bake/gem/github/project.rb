@@ -35,7 +35,10 @@ describe Bake::Gem::GitHub::Project do
 			expect(evidence).to have_keys(name: be == "example", version: be == "1.0.1", commit: be == commit, merged_by: be == "maintainer")
 		end
 		
-		it "reports an existing release PR without creating a branch" do
+		it "validates an existing release PR without creating another" do
+			isolated_project('Bake::Gem::GitHub::ProjectClient.new(Dir.pwd).prepare(Bake::Context.load(Dir.pwd), "patch")')
+			original = git("rev-parse", "HEAD")
+			git("checkout", "--quiet", "main")
 			url = isolated_project(<<~'RUBY')
 				project = Bake::Gem::GitHub::ProjectClient.new(Dir.pwd)
 				project.pulls = [{"headRefName" => "releases/v1.0.1", "url" => "existing"}]
@@ -43,6 +46,7 @@ describe Bake::Gem::GitHub::Project do
 			RUBY
 			expect(url).to be == "existing"
 			expect(git("branch", "--show-current")).to be == "main"
+			expect(git("rev-parse", "releases/v1.0.1")).to be == original
 		end
 		
 		it "refuses preparation from another branch" do

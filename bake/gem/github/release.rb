@@ -6,18 +6,21 @@
 require_relative "../../../lib/bake/gem/github/publisher"
 
 # Prepare a patch release and open its PR.
-def patch
-	Bake::Gem::GitHub::Project.new(context.root).prepare(context, "patch")
+# @parameter refresh [Boolean] Preserve and regenerate an existing release branch.
+def patch(refresh: false)
+	Bake::Gem::GitHub::Project.new(context.root).prepare(context, "patch", refresh: refresh)
 end
 
 # Prepare a minor release and open its PR.
-def minor
-	Bake::Gem::GitHub::Project.new(context.root).prepare(context, "minor")
+# @parameter refresh [Boolean] Preserve and regenerate an existing release branch.
+def minor(refresh: false)
+	Bake::Gem::GitHub::Project.new(context.root).prepare(context, "minor", refresh: refresh)
 end
 
 # Prepare a major release and open its PR.
-def major
-	Bake::Gem::GitHub::Project.new(context.root).prepare(context, "major")
+# @parameter refresh [Boolean] Preserve and regenerate an existing release branch.
+def major(refresh: false)
+	Bake::Gem::GitHub::Project.new(context.root).prepare(context, "major", refresh: refresh)
 end
 
 # Resolve and validate a merged PR, emitting a commit output for the publishing job.
