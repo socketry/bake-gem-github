@@ -73,6 +73,7 @@ describe "Publication recovery" do
 	it "uses the artifact metadata when release notes are missing" do
 		receipt = @publisher.publish(42)
 		
+		expect(@publisher.releases.first.fetch("name")).to be == "v1.0.1"
 		expect(@publisher.releases.first.fetch("body")).to be == <<~MARKDOWN
 			https://github.com/socketry/example/pull/42
 			
