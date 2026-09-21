@@ -33,7 +33,7 @@ module Bake
 						return output(receipt, restored: true)
 					end
 					filename = "#{evidence.fetch(:name)}-#{evidence.fetch(:version)}.gem"
-					if registry_digest(filename)
+					if registry_digest(evidence.fetch(:name), evidence.fetch(:version))
 						raise "Version is already published but this run has no retained artifact. Restore the original artifact; do not rebuild."
 					end
 					package = build_package(path)
@@ -63,14 +63,14 @@ module Bake
 					system("gh", "attestation", "verify", package, "--repo", @repository, "--bundle", File.join(@root, "pkg", "provenance.sigstore.json"), "--signer-workflow", "#{@repository}/.github/workflows/release-publish.yaml", "--source-digest", receipt.fetch(:commit), "--deny-self-hosted-runners", chdir: @root)
 					tag = "v#{receipt.fetch(:version)}"
 					guard_tag(tag, receipt.fetch(:commit))
-					remote_digest = registry_digest(receipt.fetch(:file))
+					remote_digest = registry_digest(receipt.fetch(:name), receipt.fetch(:version))
 					if remote_digest
 						raise "Published version has different bytes." unless remote_digest == receipt.fetch(:sha256)
 					else
 						gem_command("push", package, "--host", "https://rubygems.org", "--attestation", bundle)
 					end
 					# A failed read after upload is recoverable by rerunning the same workflow.
-					raise "Registry artifact does not match; retry after registry propagation." unless registry_digest(receipt.fetch(:file)) == receipt.fetch(:sha256)
+					raise "Registry artifact does not match; retry after registry propagation." unless registry_digest(receipt.fetch(:name), receipt.fetch(:version)) == receipt.fetch(:sha256)
 					attestations = registry_get("https://rubygems.org/api/v1/attestations/#{receipt.fetch(:name)}-#{receipt.fetch(:version)}.json")
 					raise "Registry attestation is missing." unless attestations
 					registry_bundles = JSON.parse(attestations)
@@ -193,10 +193,12 @@ module Bake
 					}
 				end
 				
-				def registry_digest(filename)
-					if body = registry_get("https://rubygems.org/downloads/#{filename}")
-						Digest::SHA256.hexdigest(body)
-					end
+				def registry_digest(name, version)
+					# Missing downloads can return 403; use the version API to establish absence.
+					return nil unless registry_get("https://rubygems.org/api/v2/rubygems/#{name}/versions/#{version}.json?platform=ruby")
+					body = registry_get("https://rubygems.org/downloads/#{name}-#{version}.gem")
+					raise "Published gem download is missing; retry after registry propagation." unless body
+					Digest::SHA256.hexdigest(body)
 				end
 				
 				def registry_get(url, redirects: 5)
