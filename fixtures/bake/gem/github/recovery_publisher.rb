@@ -12,7 +12,7 @@ module Bake
 			# real-repository integration tests; this fixture exercises interruption/retry.
 			class RecoveryPublisher < Publisher
 				attr_accessor :remote_digest, :fail_release, :fail_attestation, :fail_receipt_verification
-				attr_accessor :releases, :artifacts, :fail_preservation, :stale_release_list
+				attr_accessor :releases, :artifacts, :fail_preservation, :stale_release_list, :fail_preservation_after
 				attr_reader :commands, :stored_files
 				
 				def initialize(root)
@@ -45,13 +45,17 @@ module Bake
 					end
 					case arguments[0, 3]
 					when ["gh", "release", "upload"]
-						raise "Preservation failed" if @fail_preservation
+						raise "Preservation failed" if @fail_preservation || (@fail_preservation_after && @stored_files.size >= @fail_preservation_after)
 						file = arguments[4]
 						@stored_files[File.basename(file)] = File.binread(file)
 						@releases.first.fetch("assets") << {"name" => File.basename(file), "digest" => "sha256:#{Digest::SHA256.file(file).hexdigest}"}
 					when ["gh", "release", "download"], ["gh", "run", "download"]
-						path = arguments[arguments.index("--dir") + 1]
-						@stored_files.each{|name, content| File.binwrite(File.join(path, name), content)}
+						if index = arguments.index("--output")
+							File.binwrite(arguments[index + 1], @stored_files.fetch("release.tar"))
+						else
+							path = arguments[arguments.index("--dir") + 1]
+							@stored_files.each{|name, content| File.binwrite(File.join(path, name), content)}
+						end
 					when ["gh", "release", "edit"]
 						raise "GitHub unavailable after upload" if @fail_release
 						@releases.first["draft"] = false

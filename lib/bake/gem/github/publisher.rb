@@ -4,6 +4,7 @@
 # Copyright, 2026, by Samuel Williams.
 
 require_relative "project"
+require_relative "backup"
 require "bake/releases"
 require "digest"
 require "net/http"
@@ -35,9 +36,20 @@ module Bake
 						guard_release(release, evidence.fetch(:commit))
 						filename = "#{evidence.fetch(:name)}-#{evidence.fetch(:version)}.gem"
 						files = release_files(file: filename)
-						names = release.fetch("assets").map{|asset| asset.fetch("name")}
-						raise "Retained release is incomplete; restore the original files before retrying." unless files.all?{|file| names.include?(File.basename(file))}
-						system("gh", "release", "download", release.fetch("tag_name"), "--repo", @repository, "--dir", path, *files.flat_map{|file| ["--pattern", File.basename(file)]}, chdir: @root)
+						if backup = release.fetch("assets").find{|asset| asset.fetch("name") == "release.tar"}
+							contents = read_backup(release, backup, files)
+							contents.each do |name, content|
+								file = File.join(path, name)
+								raise "Existing artifact differs: #{name}" if File.exist?(file) && File.binread(file) != content
+							end
+							contents.each do |name, content|
+								File.binwrite(File.join(path, name), content)
+							end
+						else
+							names = release.fetch("assets").map{|asset| asset.fetch("name")}
+							raise "Retained release is incomplete; restore the original files before retrying." unless files.all?{|file| names.include?(File.basename(file))}
+							system("gh", "release", "download", release.fetch("tag_name"), "--repo", @repository, "--dir", path, *files.flat_map{|file| ["--pattern", File.basename(file)]}, chdir: @root)
+						end
 					elsif retained
 						raise "Retained artifact expired and no GitHub release is available. Restore the original files before retrying."
 					else
@@ -161,14 +173,35 @@ module Bake
 					end
 					guard_release(release, receipt.fetch(:commit))
 					assets = release.fetch("assets")
-					release_files(receipt).each do |file|
+					files = release_files(receipt)
+					files.each do |file|
 						if existing = assets.find{|asset| asset.fetch("name") == File.basename(file)}
 							raise "Existing release asset differs: #{file}" unless existing.fetch("digest") == "sha256:#{Digest::SHA256.file(file).hexdigest}"
-						else
+						end
+					end
+					if backup = assets.find{|asset| asset.fetch("name") == "release.tar"}
+						contents = read_backup(release, backup, files)
+						raise "Existing release backup differs." unless files.all?{|file| contents.fetch(File.basename(file)) == File.binread(file)}
+					else
+						# A complete backup needs only one successful upload, before individual assets:
+						backup = File.join(@root, "pkg/release.tar")
+						Backup.write(backup, files)
+						system("gh", "release", "upload", tag, backup, "--repo", @repository, chdir: @root)
+					end
+					files.each do |file|
+						unless assets.any?{|asset| asset.fetch("name") == File.basename(file)}
 							system("gh", "release", "upload", tag, file, "--repo", @repository, chdir: @root)
 						end
 					end
 					release
+				end
+				
+				def read_backup(release, asset, files)
+					Tempfile.create("release-backup") do |file|
+						system("gh", "release", "download", release.fetch("tag_name"), "--repo", @repository, "--pattern", "release.tar", "--output", file.path, "--clobber", chdir: @root)
+						raise "Release backup digest mismatch." unless asset.fetch("digest") == "sha256:#{Digest::SHA256.file(file.path).hexdigest}"
+						Backup.read(file.path, files.map{|path| File.basename(path)})
+					end
 				end
 				
 				def verify_registry(receipt, bundle, attempts: 7, delay: 10)
