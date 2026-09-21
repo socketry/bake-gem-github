@@ -5,6 +5,7 @@ source "https://rubygems.org"
 gemspec
 
 group :test do
+	gem "covered"
 	gem "sus"
 	gem "rubocop"
 	gem "rubocop-md"

@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Preserve and recover release files even when GitHub's release list is stale.
+
 ## v0.0.4
 
   - Preserve verified release files in a draft GitHub release before uploading to RubyGems, so reruns can recover when Actions artifacts disappear.

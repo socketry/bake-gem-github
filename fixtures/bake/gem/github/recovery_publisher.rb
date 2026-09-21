@@ -12,7 +12,7 @@ module Bake
 			# real-repository integration tests; this fixture exercises interruption/retry.
 			class RecoveryPublisher < Publisher
 				attr_accessor :remote_digest, :fail_release, :fail_attestation, :fail_receipt_verification
-				attr_accessor :releases, :artifacts, :fail_preservation
+				attr_accessor :releases, :artifacts, :fail_preservation, :stale_release_list
 				attr_reader :commands, :stored_files
 				
 				def initialize(root)
@@ -44,8 +44,6 @@ module Bake
 						@remote_digest = load_receipt.fetch(:sha256)
 					end
 					case arguments[0, 3]
-					when ["gh", "release", "create"]
-						@releases << {"tag_name" => arguments[3], "draft" => true, "target_commitish" => arguments[arguments.index("--target") + 1], "assets" => []}
 					when ["gh", "release", "upload"]
 						raise "Preservation failed" if @fail_preservation
 						file = arguments[4]
@@ -63,11 +61,25 @@ module Bake
 				
 				def readlines(*arguments, **options)
 					@commands << arguments
-					return [JSON.generate([@releases])] if arguments[0, 2] == ["gh", "api"]
+					if arguments[0, 2] == ["gh", "api"]
+						if arguments[2] == "graphql"
+							tag = arguments.find{|argument| argument.start_with?("tag=")}.delete_prefix("tag=")
+							index = @releases.index{|release| release.fetch("tag_name") == tag}
+							return [JSON.generate(data: {repository: {release: index && {databaseId: index + 1}}})]
+						end
+						if arguments.include?("POST")
+							release = JSON.parse(File.read(arguments[arguments.index("--input") + 1])).merge("assets" => [])
+							@releases << release
+							return [JSON.generate(release)]
+						end
+						releases = @releases.each_with_index.map{|release, index| release.merge("id" => index + 1)}
+						return [JSON.generate([@stale_release_list ? [] : releases])]
+					end
 					[]
 				end
 				
 				def api(path)
+					return @releases.fetch(Integer(path.delete_prefix("releases/")) - 1) if path.start_with?("releases/")
 					{"artifacts" => @artifacts}
 				end
 				
