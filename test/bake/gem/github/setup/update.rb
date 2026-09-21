@@ -4,54 +4,53 @@
 # Copyright, 2026, by Samuel Williams.
 
 require "bake/gem/github/setup"
-require "bake/context"
-require "sus/fixtures/temporary_directory_context"
+require "bake/gem/github/repository_context"
 
 describe Bake::Gem::GitHub::Setup do
-	include Sus::Fixtures::TemporaryDirectoryContext
+	include Bake::Gem::GitHub::RepositoryContext
 	
-	let(:setup) {subject.new(root)}
+	let(:setup) {subject.new(repository)}
 	
-	before do
-		setup.generate(repository: "socketry/example", checks: ["Tests"], signing: false)
-	end
-	
-	it "proposes configuration changes and customizations without overwriting them" do
-		path = File.join(root, "config/release.yaml")
-		config = YAML.safe_load_file(path)
-		config["approvals"] = 3
-		config["checks"] << "New check"
-		File.write(path, YAML.dump(config))
-		workflow = File.join(root, ".github/workflows/release-validate.yaml")
-		File.write(workflow, "# Custom workflow\n" + File.read(workflow))
-		before = Dir.glob("{config,.github}/**/*", File::FNM_DOTMATCH, base: root).select{|name| File.file?(File.join(root, name))}.to_h{|name| [name, File.read(File.join(root, name))]}
-		registry = Bake::Registry::Aggregate.new
-		registry.append_path(::Gem.loaded_specs.fetch("bake-gem-github").full_gem_path)
-		patch = Bake::Context.new(registry, root).call("gem:github:setup:update")
-		expect(File.read(patch)).to be(:include?, "-# Custom workflow")
-		expect(File.read(patch)).to be(:include?, '+            "context": "New check"')
-		before.each do |name, content|
-			expect(File.read(File.join(root, name))).to be == content
+	with "#update" do
+		it "leaves generated updates in the working tree for selective review" do
+			workflow = File.join(repository, ".github/workflows/release-validate.yaml")
+			File.write(workflow, "# Custom workflow\n" + File.read(workflow))
+			File.write(File.join(repository, ".github/workflows/custom.yaml"), "Custom workflow\n")
+			git("add", "--all")
+			git("commit", "--quiet", "-m", "Repository customizations")
+			original = git("rev-parse", "HEAD")
+			path = File.join(repository, "config/release.yaml")
+			config = YAML.safe_load_file(path)
+			config["approvals"] = 3
+			config["checks"] << "New check"
+			File.write(path, YAML.dump(config))
+			registry = Bake::Registry::Aggregate.new
+			registry.append_path(::Gem.loaded_specs.fetch("bake-gem-github").full_gem_path)
+			changed = Bake::Context.new(registry, repository).call("gem:github:setup:update")
+			expect(changed.sort).to be == [".github/release-rules/checks.json", ".github/release-rules/reviews.json", ".github/workflows/release-validate.yaml"]
+			diff = git("diff")
+			expect(diff).to be(:include?, "-# Custom workflow")
+			expect(diff).to be(:include?, '+            "context": "New check"')
+			expect(git("rev-parse", "HEAD")).to be == original
+			expect(git("diff", "--cached")).to be == ""
+			expect(File.read(File.join(repository, ".github/workflows/custom.yaml"))).to be == "Custom workflow\n"
+			expect(setup.update).to be == []
+			expect(git("diff")).to be == diff
+			expect(YAML.safe_load_file(path)).to be == config
 		end
-		expect(system("git", "apply", "--check", patch, chdir: root)).to be == true
-		expect(system("git", "apply", patch, chdir: root)).to be == true
-		expect(File.read(setup.update)).to be == ""
-		expect(YAML.safe_load_file(path)).to be == config
-	end
-	
-	it "restores missing generated files through the patch" do
-		path = File.join(root, ".github/releasing.md")
-		original = File.read(path)
-		File.unlink(path)
-		patch = setup.update
-		expect(File.exist?(path)).to be == false
-		expect(system("git", "apply", patch, chdir: root)).to be == true
-		expect(File.read(path)).to be == original
-		expect(File.read(setup.update)).to be == ""
-	end
-	
-	it "refuses unsupported configuration schemas" do
-		File.write(File.join(root, "config/release.yaml"), YAML.dump("schema" => 2))
-		expect{setup.update}.to raise_exception(RuntimeError, message: be =~ /Unsupported release configuration/)
+		
+		it "restores missing generated files" do
+			path = File.join(repository, ".github/releasing.md")
+			original = File.read(path)
+			File.unlink(path)
+			expect(setup.update).to be == [".github/releasing.md"]
+			expect(File.read(path)).to be == original
+			expect(setup.update).to be == []
+		end
+		
+		it "refuses unsupported configuration schemas" do
+			File.write(File.join(repository, "config/release.yaml"), YAML.dump("schema" => 2))
+			expect{setup.update}.to raise_exception(RuntimeError, message: be =~ /Unsupported release configuration/)
+		end
 	end
 end

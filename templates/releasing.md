@@ -14,4 +14,4 @@ Verify both the downloaded gem and `release.json` with `gh attestation verify`, 
 
 The initial implementation supports public repositories, a single gemspec, stable patch/minor/major versions, and merge/squash commits. Keep rebase merges and merge queues disabled. Generation hooks must be repeatable from the same source and version. Run setup and account recovery checks before enabling publishing; see the companion gem's setup guide.
 
-After upgrading `bake-gem-github`, run `bundle exec bake gem:github:setup:update` to write `pkg/release-setup.patch`. Review every hunk, including differences from local customizations, then apply the desired changes and open a PR. The task does not modify repository files or remote settings.
+After upgrading `bake-gem-github`, start from a clean working tree and run `bundle exec bake gem:github:setup:update`. It updates generated files without staging or committing them. Review `git diff`, selectively keep changes and restore customizations as needed, then open a PR.

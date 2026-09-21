@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-  - Generate reviewable setup updates with `gem:github:setup:update`.
+  - Update generated release files in the working tree with `gem:github:setup:update`.
 
 ## v0.0.5
 

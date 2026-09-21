@@ -7,7 +7,6 @@ require "erb"
 require "yaml"
 require "json"
 require "fileutils"
-require "tempfile"
 
 module Bake
 	module Gem
@@ -29,33 +28,15 @@ module Bake
 					files = render(config)
 					conflicts = files.keys.select{|name| File.exist?(File.join(@root, name)) && File.read(File.join(@root, name)) != files[name]}
 					raise "Existing files differ; review them before regenerating: #{conflicts.join(', ')}" unless conflicts.empty?
-					files.each do |name, content|
-						path = File.join(@root, name)
-						FileUtils.mkdir_p(File.dirname(path))
-						File.write(path, content) unless File.exist?(path)
-					end
+					write(files)
 					files.keys
 				end
 				
-				# Write a patch proposing updates from the existing configuration, without replacing repository files.
+				# Update generated files in the working tree using the existing configuration; return changed paths.
 				def update
 					config = YAML.safe_load_file(File.join(@root, "config/release.yaml"))
 					raise "Unsupported release configuration." unless config.fetch("schema") == 1
-					patch = render(config).map do |name, content|
-						path = File.join(@root, name)
-						Tempfile.create("release-update") do |file|
-							file.write(content)
-							file.flush
-							exists = File.exist?(path)
-							diff = IO.popen(["diff", "-u", "--label", exists ? "a/#{name}" : "/dev/null", "--label", "b/#{name}", exists ? path : File::NULL, file.path], &:read)
-							raise "Unable to compare #{name}." unless [0, 1].include?($?.exitstatus)
-							diff
-						end
-					end.join
-					path = File.join(@root, "pkg/release-setup.patch")
-					FileUtils.mkdir_p(File.dirname(path))
-					File.write(path, patch)
-					path
+					write(render(config))
 				end
 				
 				# Native review/check rules allow PR-only administrator bypass; history rules have no bypass.
@@ -72,6 +53,16 @@ module Bake
 				end
 				
 				private
+				
+				def write(files)
+					files.filter_map do |name, content|
+						path = File.join(@root, name)
+						next if File.exist?(path) && File.read(path) == content
+						FileUtils.mkdir_p(File.dirname(path))
+						File.write(path, content)
+						name
+					end
+				end
 				
 				def render(config)
 					branch = config.fetch("branch")
