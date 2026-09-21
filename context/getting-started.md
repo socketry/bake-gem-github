@@ -18,7 +18,7 @@ bundle exec bake agent:context:install
 bundle exec bake gem:github:setup:plan
 ```
 
-Setup adds three pinned workflows, `config/release.yaml`, native ruleset payloads, and `.github/releasing.md`. Identical reruns do nothing; conflicting existing files stop before any file is written. Setup does not replace other publishers: remove conflicting release workflows during migration.
+Setup adds three release workflows, `config/release.yaml`, native ruleset payloads, and `.github/releasing.md`. Identical reruns do nothing; conflicting existing files stop before any file is written. Setup does not replace other publishers: remove conflicting release workflows during migration.
 
 To adopt template fixes after upgrading the gem, start from a clean working tree, edit `config/release.yaml` as needed, and regenerate:
 
@@ -28,6 +28,8 @@ git diff
 ```
 
 The task updates the managed workflows, policy payloads, configuration formatting, and maintainer instructions directly in the working tree and returns the changed paths. It does not stage, commit, or change remote settings. An agent or maintainer can review the diff and selectively keep changes, restoring repository-specific customizations from Git where needed. Commit or stash existing edits first: generated files are replaced by the current templates. Repeating an update produces no further changes; intentionally retained customizations will appear in later update diffs. Apply remote rulesets after the corresponding workflows are running.
+
+Release workflows follow `bake modernize` action versions and use moving major tags where upstream provides them. These tags receive upstream updates automatically; full commit hashes select fixed revisions. The RubyGems credentials action uses its [documented `@main` reference](https://github.com/rubygems/configure-rubygems-credentials#trusted-publisher-recommended), since upstream does not provide a moving major tag. Repositories that require fixed revisions can customize these references.
 
 The default is two approvals with explicit administrator bypass, dismissed stale reviews, approval of the last push, strict up-to-date CI, and immutable default-branch history/release tags. These branch rules affect **all PRs** into the default branch. Ordinary administrator reviews count as one review. A human who dispatches a bot-authored PR is not its author under GitHub's native rules.
 

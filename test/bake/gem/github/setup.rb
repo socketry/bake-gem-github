@@ -62,6 +62,25 @@ describe Bake::Gem::GitHub::Setup do
 		expect(File.read(path)).to be == "Custom workflow\n"
 	end
 	
+	it "permits a fork checkout only after merged release inspection" do
+		generate
+		workflow = YAML.safe_load_file(File.join(root, ".github/workflows/release-publish.yaml"))
+		inspect = workflow.fetch("jobs").fetch("inspect")
+		expect(inspect.fetch("if")).to be == "github.event.pull_request.merged == true"
+		expect(inspect.fetch("steps").first.fetch("with")).not.to have_keys("allow-unsafe-pr-checkout", "ref")
+		expect(inspect.fetch("steps").last.fetch("run")).to be == "bundle exec bake gem:github:release:resolve"
+		publish = workflow.fetch("jobs").fetch("publish")
+		expect(publish.fetch("needs")).to be == "inspect"
+		expect(publish.fetch("if")).to be == "needs.inspect.outputs.release == 'true'"
+		checkout = publish.fetch("steps").first.fetch("with")
+		expect(checkout.fetch("ref")).to be == "${{ needs.inspect.outputs.commit }}"
+		expect(checkout.fetch("allow-unsafe-pr-checkout")).to be == true
+		%w[prepare validate].each do |name|
+			workflow = File.read(File.join(root, ".github/workflows/release-#{name}.yaml"))
+			expect(workflow).not.to be(:include?, "allow-unsafe-pr-checkout")
+		end
+	end
+	
 	it "attests both the gem and its source receipt with native provenance" do
 		generate
 		workflow = YAML.safe_load_file(File.join(root, ".github/workflows/release-publish.yaml"))
