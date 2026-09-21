@@ -65,4 +65,11 @@ describe Bake::Gem::GitHub::Setup do
 		expect{generate}.to raise_exception(RuntimeError, message: be =~ /Existing files differ/)
 		expect(File.read(path)).to be == "Custom workflow\n"
 	end
+	
+	it "attests both the gem and its source receipt with native provenance" do
+		generate
+		workflow = YAML.safe_load_file(File.join(@root, ".github/workflows/release-publish.yaml"))
+		attest = workflow.fetch("jobs").fetch("publish").fetch("steps").find{|step| step["id"] == "attest"}
+		expect(attest.fetch("with")).to be == {"subject-path" => "${{ steps.build.outputs.package }}\npkg/release.json\n"}
+	end
 end
