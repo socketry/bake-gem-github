@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.0.5
 
   - Preserve and recover release files even when GitHub's release list is stale.
 
