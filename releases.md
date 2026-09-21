@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Stop generating `.github/releasing.md`; release instructions are maintained in the shared guide and agent context.
+
 ## v0.2.0
 
   - Use only the version tag for GitHub release titles.

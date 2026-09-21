@@ -18,7 +18,7 @@ bundle exec bake agent:context:install
 bundle exec bake gem:github:setup:plan
 ```
 
-Setup adds three release workflows, `config/release.yaml`, native ruleset payloads, and `.github/releasing.md`. Identical reruns do nothing; conflicting existing files stop before any file is written. Setup does not replace other publishers: remove conflicting release workflows during migration.
+Setup adds three release workflows, `config/release.yaml`, and native ruleset payloads. Identical reruns do nothing; conflicting existing files stop before any file is written. Setup does not replace other publishers: remove conflicting release workflows during migration.
 
 To adopt template fixes after upgrading the gem, start from a clean working tree, edit `config/release.yaml` as needed, and regenerate:
 
@@ -27,7 +27,7 @@ bundle exec bake gem:github:setup:update
 git diff
 ```
 
-The task updates the managed workflows, policy payloads, configuration formatting, and maintainer instructions directly in the working tree and returns the changed paths. It does not stage, commit, or change remote settings. An agent or maintainer can review the diff and selectively keep changes, restoring repository-specific customizations from Git where needed. Commit or stash existing edits first: generated files are replaced by the current templates. Repeating an update produces no further changes; intentionally retained customizations will appear in later update diffs. Apply remote rulesets after the corresponding workflows are running.
+The task updates the managed workflows, policy payloads, and configuration formatting directly in the working tree and returns the changed paths. It does not stage, commit, or change remote settings. An agent or maintainer can review the diff and selectively keep changes, restoring repository-specific customizations from Git where needed. Commit or stash existing edits first: generated files are replaced by the current templates. Repeating an update produces no further changes; intentionally retained customizations will appear in later update diffs. Apply remote rulesets after the corresponding workflows are running.
 
 Release workflows follow `bake modernize` action versions and use moving major tags where upstream provides them. These tags receive upstream updates automatically; full commit hashes select fixed revisions. The RubyGems credentials action uses its [documented `@main` reference](https://github.com/rubygems/configure-rubygems-credentials#trusted-publisher-recommended), since upstream does not provide a moving major tag. Repositories that require fixed revisions can customize these references.
 
