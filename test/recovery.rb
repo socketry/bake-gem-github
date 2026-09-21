@@ -53,7 +53,7 @@ class RecoveryPublisher < Bake::Gem::GitHub::Publisher
 	def guard_environment
 	end
 	
-	def registry_digest(filename)
+	def registry_digest(name, version)
 		@remote_digest
 	end
 	
