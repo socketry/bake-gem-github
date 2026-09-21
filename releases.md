@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.0.4
 
   - Preserve verified release files in a draft GitHub release before uploading to RubyGems, so reruns can recover when Actions artifacts disappear.
   - Wait for RubyGems registry propagation before finalizing releases.
