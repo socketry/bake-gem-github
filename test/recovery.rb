@@ -125,11 +125,36 @@ describe "Publication recovery" do
 		expect(@publisher.commands.count{|args| args[0, 3] == ["gh", "release", "upload"]}).to be == 4
 	end
 	
-	it "requires confirmation that a newly created draft is retained" do
+	it "uses the created draft response when the release list remains stale" do
+		@publisher.stale_release_list = true
+		receipt = @publisher.publish(42)
+		expect(@publisher.releases.size).to be == 1
+		expect(@publisher.releases.first.fetch("draft")).to be == false
+		expect(@publisher.remote_digest).to be == receipt.fetch(:sha256)
+		expect(@publisher.stored_files.keys.sort).to be == ["example-1.0.1.gem", "example-1.0.1.gem.sigstore.json", "provenance.sigstore.json", "release.json"]
+	end
+	
+	it "restores an existing draft hidden by a stale release list without creating another" do
+		@publisher.fail_release = true
+		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /GitHub unavailable/)
+		@publisher.stale_release_list = true
+		@publisher.fail_release = false
+		restore
+		@publisher.publish(42)
+		expect(@publisher.releases.size).to be == 1
+		expect(@publisher.releases.first.fetch("draft")).to be == false
+		expect(@publisher.commands.count{|args| args[0, 2] == ["gem", "push"]}).to be == 1
+	end
+	
+	it "does not interpret a failed direct lookup as an absent release" do
 		mock(@publisher) do |wrapper|
-			wrapper.replace(:readlines){|*arguments, **options| arguments[0, 2] == ["gh", "api"] ? ["[[]]"] : []}
+			wrapper.wrap(:readlines) do |original, *arguments, **options|
+				raise "GitHub lookup failed" if arguments[0, 3] == ["gh", "api", "graphql"]
+				original.call(*arguments, **options)
+			end
 		end
-		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Draft release was not retained/)
+		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /lookup failed/)
+		expect(@publisher.releases).to be == []
 		expect(@publisher.remote_digest).to be_nil
 	end
 	
@@ -143,7 +168,7 @@ describe "Publication recovery" do
 	it "refuses a published version containing different bytes" do
 		@publisher.remote_digest = Digest::SHA256.hexdigest("Someone else's artifact")
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /different bytes/)
-		expect(@publisher.commands.any?{|args| args[0, 3] == ["gh", "release", "create"]}).to be == false
+		expect(@publisher.commands.any?{|args| args.include?("POST")}).to be == false
 	end
 	
 	it "stops before publication when the receipt attestation is invalid" do

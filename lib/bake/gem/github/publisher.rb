@@ -120,7 +120,16 @@ module Bake
 					pages = JSON.parse(readlines("gh", "api", "--paginate", "--slurp", "repos/#{@repository}/releases?per_page=100", chdir: @root).join)
 					matches = pages.flatten(1).select{|release| release.fetch("tag_name") == tag}
 					raise "Multiple GitHub releases have the same tag." if matches.size > 1
-					matches.first
+					if release = matches.first
+						return api("releases/#{release.fetch('id')}")
+					end
+					# Resolve pending tags directly when the REST list has not caught up:
+					owner, name = @repository.split("/", 2)
+					query = "query($owner: String!, $name: String!, $tag: String!) { repository(owner: $owner, name: $name) { release(tagName: $tag) { databaseId } } }"
+					result = JSON.parse(readlines("gh", "api", "graphql", "-f", "query=#{query}", "-f", "owner=#{owner}", "-f", "name=#{name}", "-f", "tag=#{tag}", chdir: @root).join)
+					if release = result.fetch("data").fetch("repository").fetch("release")
+						api("releases/#{release.fetch('databaseId')}")
+					end
 				end
 				
 				def guard_release(release, commit)
@@ -137,12 +146,15 @@ module Bake
 					tag = "v#{receipt.fetch(:version)}"
 					release = github_release(tag)
 					unless release
-						Tempfile.create("release-notes") do |file|
-							file.write("#{receipt.fetch(:pull_request_url)}\n\nSource: #{receipt.fetch(:commit)}\nSHA256: #{receipt.fetch(:sha256)}\n\nSee releases.md at the release tag for release notes.\n")
+						Tempfile.create("release") do |file|
+							file.write(JSON.generate(
+								tag_name: tag, draft: true, target_commitish: receipt.fetch(:commit), name: "#{receipt.fetch(:name)} #{tag}",
+								body: "#{receipt.fetch(:pull_request_url)}\n\nSource: #{receipt.fetch(:commit)}\nSHA256: #{receipt.fetch(:sha256)}\n\nSee releases.md at the release tag for release notes.\n"
+							))
 							file.flush
-							system("gh", "release", "create", tag, "--repo", @repository, "--draft", "--target", receipt.fetch(:commit), "--title", "#{receipt.fetch(:name)} #{tag}", "--notes-file", file.path, chdir: @root)
+							# The release list can remain stale after a successful creation:
+							release = JSON.parse(readlines("gh", "api", "repos/#{@repository}/releases", "--method", "POST", "--input", file.path, chdir: @root).join)
 						end
-						release = github_release(tag) or raise "Draft release was not retained."
 					end
 					guard_release(release, receipt.fetch(:commit))
 					assets = release.fetch("assets")
