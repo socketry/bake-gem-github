@@ -3,7 +3,7 @@
 # Released under the MIT License.
 # Copyright, 2026, by Samuel Williams.
 
-require_relative "../lib/bake/gem/github/publisher"
+require "bake/gem/github/publisher"
 
 describe Bake::Gem::GitHub::Publisher do
 	with "#verify_provenance" do

@@ -7,7 +7,9 @@ checks:
 - Test Ruby 3.4
 - Test Ruby 4.0
 - RuboCop
-- Documentation coverage
+- ruby on ubuntu
+- ruby on macos
+- validate
 - Release validation
 approvals: 2
 signing: true

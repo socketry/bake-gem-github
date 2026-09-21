@@ -3,7 +3,7 @@
 # Released under the MIT License.
 # Copyright, 2026, by Samuel Williams.
 
-require_relative "../lib/bake/gem/github/publisher"
+require "bake/gem/github/publisher"
 require "sus/fixtures/temporary_directory_context"
 
 describe Bake::Gem::GitHub::Publisher do
@@ -59,7 +59,7 @@ describe Bake::Gem::GitHub::Publisher do
 		end
 		
 		it "rejects an unrelated attestation immediately" do
-			attestations.replace(["[]"])
+			attestations.replace([JSON.generate([{bundle: {mediaType: "unrelated"}}])])
 			expect{verify}.to raise_exception(RuntimeError, message: be =~ /Sigstore bundle/)
 			expect(waits).to be == []
 		end
@@ -125,6 +125,26 @@ describe Bake::Gem::GitHub::Publisher do
 			responses[version_path] = response("200", "{}")
 			responses[download_path] = response("404")
 			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /Published gem download is missing/)
+		end
+		
+		it "follows HTTPS redirects relative to the registry URL" do
+			responses[version_path] = response("302")
+			responses[version_path]["location"] = "/version.json"
+			responses["/version.json"] = response("200", "{}")
+			responses[download_path] = response("200", "gem bytes")
+			expect(publisher.send(:registry_digest, "example", "1.0.1")).to be == Digest::SHA256.hexdigest("gem bytes")
+		end
+		
+		it "rejects a redirect to an unencrypted download" do
+			responses[version_path] = response("302")
+			responses[version_path]["location"] = "http://rubygems.org/version.json"
+			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /requires HTTPS/)
+		end
+		
+		it "bounds registry redirect loops" do
+			responses[version_path] = response("302")
+			responses[version_path]["location"] = version_path
+			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /Too many registry redirects/)
 		end
 	end
 end
