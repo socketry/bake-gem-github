@@ -23,6 +23,6 @@ See [bake-gem-github](https://github.com/socketry/bake-gem-github) for setup, re
 
 Run `bundle exec bake test` for the test suite and `bundle exec rubocop` for style checks. The test, coverage, documentation, and RuboCop workflows follow `bake modernize` conventions.
 
-Install maintenance dependencies with `BUNDLE_WITH=maintenance bundle install`, then run `BUNDLE_WITH=maintenance bundle exec bake agent:context:install` for local agent guidance. Generated `agents.md` and `.context/` files are ignored.
+Install maintenance dependencies with `BUNDLE_WITH=maintenance bundle install`, then run `BUNDLE_WITH=maintenance bundle exec bake agent:context:install` for local agent guidance. Generated `agents.md` and `.agents/context/` files are ignored.
 
 Review modernization changes before committing them. Retain the Socketry certificate, the `~/.gem/socketry-release.pem` signing key path, and packaged release templates. Publishing is handled by `release-publish.yaml`; do not add a second publishing hook to `bake.rb`.
