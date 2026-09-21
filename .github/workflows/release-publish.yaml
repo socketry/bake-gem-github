@@ -27,11 +27,11 @@ jobs:
       release: ${{ steps.inspect.outputs.release }}
       commit: ${{ steps.inspect.outputs.commit }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4"
           bundler-cache: true
@@ -52,12 +52,15 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@v7
         with:
+          # Inspection verified this merged commit belongs to the default branch.
+          # Checkout v7 also blocks merged fork PRs without this explicit opt-in.
+          allow-unsafe-pr-checkout: true
           ref: ${{ needs.inspect.outputs.commit }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4"
           rubygems: '4.0.21'
@@ -76,7 +79,7 @@ jobs:
       - name: Attest gem and release receipt
         if: steps.build.outputs.restored != 'true'
         id: attest
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        uses: actions/attest@v4
         with:
           subject-path: |
             ${{ steps.build.outputs.package }}
@@ -88,13 +91,13 @@ jobs:
         run: cp "$ATTESTATION_BUNDLE" pkg/provenance.sigstore.json
       - name: Preserve release before upload
         if: steps.build.outputs.restored != 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.build.outputs.artifact }}
           path: pkg/
           if-no-files-found: error
           retention-days: 90
-      - uses: rubygems/configure-rubygems-credentials@2a7221c7c44c30ebc68eda38fa25c60b918245c7
+      - uses: rubygems/configure-rubygems-credentials@main
       - name: Verify, publish, and finalize
         env:
           GH_TOKEN: ${{ github.token }}
