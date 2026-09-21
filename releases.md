@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Update generated release files in the working tree with `gem:github:setup:update`.
+
 ## v0.0.5
 
   - Preserve and recover release files even when GitHub's release list is stale.

@@ -13,3 +13,9 @@ def apply
 	require_relative "../../../lib/bake/gem/github/project"
 	Bake::Gem::GitHub::Project.new(context.root).apply
 end
+
+# Update generated files in the working tree using config/release.yaml and the installed templates.
+def update
+	require_relative "../../../lib/bake/gem/github/setup"
+	Bake::Gem::GitHub::Setup.new(context.root).update
+end
