@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.2.0
 
   - Use only the version tag for GitHub release titles.
 
