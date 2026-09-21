@@ -4,16 +4,14 @@
 # Copyright, 2026, by Samuel Williams.
 
 require_relative "../lib/bake/gem/github/setup"
-require "tmpdir"
+require "sus/fixtures/temporary_directory_context"
 require "bake/context"
 
 describe Bake::Gem::GitHub::Setup do
-	def around
-		Dir.mktmpdir do |root|
-			@root = root
-			@setup = subject.new(root)
-			yield
-		end
+	include Sus::Fixtures::TemporaryDirectoryContext
+	
+	before do
+		@setup = subject.new(root)
 	end
 	
 	def generate

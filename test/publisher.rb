@@ -5,28 +5,29 @@
 
 require_relative "../lib/bake/gem/github/publisher"
 require "open3"
+require "sus/fixtures/temporary_directory_context"
+require "sus/fixtures/isolated_ruby_context"
 
 describe Bake::Gem::GitHub::Publisher do
+	include Sus::Fixtures::TemporaryDirectoryContext
+	include Sus::Fixtures::IsolatedRubyContext
+	
 	def git(*arguments)
 		output, status = Open3.capture2e("git", *arguments, chdir: @root)
 		raise output unless status.success?
 		output.strip
 	end
 	
-	def around
-		Dir.mktmpdir do |root|
-			@root = root
-			Bake::Gem::GitHub::Setup.new(root).generate(repository: "socketry/example", checks: ["Test"], signing: false)
-			git("init", "--initial-branch=main")
-			git("config", "core.hooksPath", File::NULL)
-			git("config", "user.name", "Test")
-			git("config", "user.email", "test@example.com")
-			git("add", "--all")
-			git("commit", "-m", "Initial source")
-			@commit = git("rev-parse", "HEAD")
-			@publisher = subject.new(root)
-			yield
-		end
+	before do
+		Bake::Gem::GitHub::Setup.new(root).generate(repository: "socketry/example", checks: ["Test"], signing: false)
+		git("init", "--initial-branch=main")
+		git("config", "core.hooksPath", File::NULL)
+		git("config", "user.name", "Test")
+		git("config", "user.email", "test@example.com")
+		git("add", "--all")
+		git("commit", "-m", "Initial source")
+		@commit = git("rev-parse", "HEAD")
+		@publisher = subject.new(root)
 	end
 	
 	it "detects a changed retained artifact" do
@@ -87,19 +88,16 @@ describe Bake::Gem::GitHub::Publisher do
 		git("add", "--all")
 		git("commit", "-m", "Gem source and public certificate")
 		File.write(File.join(@root, "example.rb"), "DIRTY")
-		@publisher.config["signing"] = true
-		previous = ENV["GEM_SIGNING_KEY"]
-		begin
-			ENV["GEM_SIGNING_KEY"] = key.to_pem
-			package_path = @publisher.send(:build_package, File.join(@root, "pkg"))
+		result = isolated_ruby(<<~'RUBY', chdir: root, env: {"GEM_SIGNING_KEY" => key.to_pem}, requires: ["bundler/setup", "bake/gem/github/publisher"])
+			publisher = Bake::Gem::GitHub::Publisher.new(Dir.pwd)
+			publisher.config["signing"] = true
+			package_path = publisher.send(:build_package, File.join(Dir.pwd, "pkg"))
 			package = Gem::Package.new(package_path, Gem::Security::Policy.new("Release", only_trusted: false))
 			package.verify
-			package.extract_files(File.join(@root, "extracted"))
-			expect(File.read(File.join(@root, "extracted", "example.rb"))).to be == "ORIGINAL"
-			expect(OpenSSL::X509::Certificate.new(package.spec.cert_chain.last).to_der).to be == certificate.to_der
-		ensure
-			ENV["GEM_SIGNING_KEY"] = previous
-		end
+			package.extract_files("extracted")
+			{content: File.read("extracted/example.rb"), signer: OpenSSL::X509::Certificate.new(package.spec.cert_chain.last).to_der}
+		RUBY
+		expect(result[:content]).to be == "ORIGINAL"
+		expect(result[:signer]).to be == certificate.to_der
 	end
-	
 end
