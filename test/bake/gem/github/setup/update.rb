@@ -26,7 +26,7 @@ describe Bake::Gem::GitHub::Setup do
 		File.write(workflow, "# Custom workflow\n" + File.read(workflow))
 		before = Dir.glob("{config,.github}/**/*", File::FNM_DOTMATCH, base: root).select{|name| File.file?(File.join(root, name))}.to_h{|name| [name, File.read(File.join(root, name))]}
 		registry = Bake::Registry::Aggregate.new
-		registry.append_path(File.expand_path("..", __dir__))
+		registry.append_path(::Gem.loaded_specs.fetch("bake-gem-github").full_gem_path)
 		patch = Bake::Context.new(registry, root).call("gem:github:setup:update")
 		expect(File.read(patch)).to be(:include?, "-# Custom workflow")
 		expect(File.read(patch)).to be(:include?, '+            "context": "New check"')
