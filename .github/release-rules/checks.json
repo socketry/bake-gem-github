@@ -25,16 +25,25 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
-            "context": "Test Ruby 3.3"
+            "context": "3.3 on ubuntu"
           },
           {
-            "context": "Test Ruby 3.4"
+            "context": "3.3 on macos"
           },
           {
-            "context": "Test Ruby 4.0"
+            "context": "3.4 on ubuntu"
           },
           {
-            "context": "RuboCop"
+            "context": "3.4 on macos"
+          },
+          {
+            "context": "4.0 on ubuntu"
+          },
+          {
+            "context": "4.0 on macos"
+          },
+          {
+            "context": "check"
           },
           {
             "context": "ruby on ubuntu"

@@ -13,10 +13,12 @@ Use one gemspec, a stable three-part version in `lib/.../version.rb`, and repeat
 Run setup in each repository. It discovers the canonical repository and default branch through `gh` and generates reviewable local files. Supply the actual required CI job names, including supported matrix entries:
 
 ``` bash
-bundle exec bake gem:github:setup checks="Test Ruby 3.3,Test Ruby 3.4,RuboCop"
+bundle exec bake gem:github:setup checks="3.3 on ubuntu,3.3 on macos,3.4 on ubuntu,3.4 on macos,4.0 on ubuntu,4.0 on macos,check,ruby on ubuntu,ruby on macos,validate"
 bundle exec bake agent:context:install
 bundle exec bake gem:github:setup:plan
 ```
+
+This example uses the job names from the standard `bake modernize` test, RuboCop, and coverage workflows. Select the checks actually produced by your repository; experimental Ruby jobs are not required. When changing workflow job names, update `config/release.yaml` and apply the corresponding rulesets so required checks keep matching the workflows.
 
 Setup adds three release workflows, `config/release.yaml`, and native ruleset payloads. Identical reruns do nothing; conflicting existing files stop before any file is written. Setup does not replace other publishers: remove conflicting release workflows during migration.
 

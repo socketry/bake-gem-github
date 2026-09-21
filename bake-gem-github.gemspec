@@ -9,6 +9,11 @@ Gem::Specification.new do |spec|
 	spec.authors = ["Samuel Williams"]
 	spec.license = "MIT"
 	spec.homepage = "https://github.com/socketry/bake-gem-github"
+	spec.metadata = {
+		"bug_tracker_uri" => "https://github.com/socketry/bake-gem-github/issues",
+		"changelog_uri" => "https://github.com/socketry/bake-gem-github/blob/main/releases.md",
+		"source_code_uri" => "https://github.com/socketry/bake-gem-github.git",
+	}
 	spec.cert_chain = ["release.cert"]
 	spec.signing_key = File.expand_path("~/.gem/socketry-release.pem")
 	spec.files = Dir.glob(["{bake,context,lib,templates}/**/*", "*.md", "release.cert"], base: __dir__)
