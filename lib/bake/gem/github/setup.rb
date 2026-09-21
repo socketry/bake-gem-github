@@ -18,7 +18,7 @@ module Bake
 					@root = File.expand_path(root)
 				end
 				
-				# Generate workflows, policy payloads, and maintainer instructions. Refuse conflicting existing files.
+				# Generate workflows, policy payloads, and configuration. Refuse conflicting existing files.
 				def generate(repository:, branch: "main", checks:, approvals: 2, signing: File.file?(File.join(@root, "release.cert")), ruby: "3.4")
 					raise "Expected owner/repository." unless repository.match?(/\A[\w.-]+\/[\w.-]+\z/)
 					raise "Unsupported branch name." unless branch.match?(/\A[\w.\/-]+\z/)
@@ -76,7 +76,6 @@ module Bake
 					self.class.rules(config).each do |name, rule|
 						files[".github/release-rules/#{name}.json"] = JSON.pretty_generate(rule) + "\n"
 					end
-					files[".github/releasing.md"] = File.read(File.join(templates, "releasing.md"))
 					files
 				end
 			end

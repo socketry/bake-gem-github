@@ -9,4 +9,12 @@ Reviewed GitHub releases for Ruby gems, using `bake-gem` for branch preparation,
 
 Read [the setup, release and recovery guide](guides/getting-started/readme.md) before enabling publishing. Context is distributed through `agent-context`. This initial implementation requires `bake-gem` 0.15 or later and a live pilot before wider rollout.
 
-For this gem's releases, follow [the maintainer instructions](.github/releasing.md). Release workflows use the source checkout through Bundler's `gemspec` dependency, so the first release does not require an already published copy of `bake-gem-github`.
+## Making Releases
+
+To prepare a release branch and open a pull request from an up-to-date `main`:
+
+``` bash
+$ bundle exec bake gem:github:release:patch # or minor or major
+```
+
+See [bake-gem-github](https://github.com/socketry/bake-gem-github) for setup, remote releases, and recovery.

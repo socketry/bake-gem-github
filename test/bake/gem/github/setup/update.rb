@@ -40,12 +40,13 @@ describe Bake::Gem::GitHub::Setup do
 		end
 		
 		it "restores missing generated files" do
-			path = File.join(repository, ".github/releasing.md")
+			path = File.join(repository, ".github/workflows/release-validate.yaml")
 			original = File.read(path)
 			File.unlink(path)
-			expect(setup.update).to be == [".github/releasing.md"]
+			expect(setup.update).to be == [".github/workflows/release-validate.yaml"]
 			expect(File.read(path)).to be == original
 			expect(setup.update).to be == []
+			expect(File).not.to be(:exist?, File.join(repository, ".github/releasing.md"))
 		end
 		
 		it "refuses unsupported configuration schemas" do

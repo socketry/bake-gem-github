@@ -32,6 +32,7 @@ describe Bake::Gem::GitHub::Setup do
 	it "generates three parseable workflows and idempotent native policy" do
 		paths = generate
 		expect(generate).to be == paths
+		expect(File).not.to be(:exist?, File.join(root, ".github/releasing.md"))
 		expect(paths.grep(/workflows/).size).to be == 3
 		paths.grep(/workflows/).each do |path|
 			workflow = YAML.safe_load_file(File.join(root, path))
