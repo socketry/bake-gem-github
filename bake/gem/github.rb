@@ -27,7 +27,5 @@ end
 # Show the desired rules, existing rules, environments, and RubyGems bootstrap values.
 def doctor
 	require_relative "../../lib/bake/gem/github/project"
-	result = Bake::Gem::GitHub::Project.new(context.root).doctor
-	puts JSON.pretty_generate(result)
-	result
+	Bake::Gem::GitHub::Project.new(context.root).doctor
 end
