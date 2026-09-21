@@ -40,7 +40,6 @@ module Bake
 					raise "Unexpected package filename." unless File.basename(package) == filename
 					receipt = evidence.merge(file: filename, sha256: Digest::SHA256.file(package).hexdigest, run_id: run, signing: @config.fetch("signing"))
 					File.write(File.join(path, "release.json"), JSON.pretty_generate(receipt) + "\n")
-					File.write(File.join(path, "provenance.json"), JSON.pretty_generate(provenance(receipt)) + "\n")
 					output(receipt, restored: false)
 				end
 				
@@ -60,7 +59,7 @@ module Bake
 					bundle = "#{package}.sigstore.json"
 					identity = "https://github.com/#{@repository}/.github/workflows/release-publish.yaml@refs/heads/#{@config.fetch('branch')}"
 					gem_command("exec", "sigstore-cli:0.2.3", "verify", package, "--bundle", bundle, "--certificate-identity", identity, "--certificate-oidc-issuer", "https://token.actions.githubusercontent.com")
-					system("gh", "attestation", "verify", package, "--repo", @repository, "--bundle", File.join(@root, "pkg", "provenance.sigstore.json"), "--signer-workflow", "#{@repository}/.github/workflows/release-publish.yaml", "--source-digest", receipt.fetch(:commit), "--deny-self-hosted-runners", chdir: @root)
+					verify_provenance(package)
 					tag = "v#{receipt.fetch(:version)}"
 					guard_tag(tag, receipt.fetch(:commit))
 					remote_digest = registry_digest(receipt.fetch(:name), receipt.fetch(:version))
@@ -90,7 +89,7 @@ module Bake
 					end
 					# Existing immutable assets are checked before upload; never clobber them.
 					assets = api("releases/tags/#{tag}").fetch("assets")
-					[package, bundle, File.join(@root, "pkg", "release.json"), File.join(@root, "pkg", "provenance.json"), File.join(@root, "pkg", "provenance.sigstore.json")].each do |file|
+					[package, bundle, File.join(@root, "pkg", "release.json"), File.join(@root, "pkg", "provenance.sigstore.json")].each do |file|
 						if existing = assets.find{|asset| asset.fetch("name") == File.basename(file)}
 							digest = existing.fetch("digest")
 							raise "Existing release asset differs: #{file}" unless digest == "sha256:#{Digest::SHA256.file(file).hexdigest}"
@@ -181,16 +180,13 @@ module Bake
 					receipt
 				end
 				
-				def provenance(receipt)
-					{
-						buildDefinition: {
-							buildType: "https://actions.github.io/buildtypes/workflow/v1",
-							externalParameters: {workflow: {ref: "refs/heads/#{@config.fetch('branch')}", repository: "https://github.com/#{@repository}", path: ".github/workflows/release-publish.yaml"}},
-							internalParameters: {github: {event_name: ENV.fetch("GITHUB_EVENT_NAME"), repository_id: ENV.fetch("GITHUB_REPOSITORY_ID"), repository_owner_id: ENV.fetch("GITHUB_REPOSITORY_OWNER_ID")}},
-							resolvedDependencies: [{uri: "git+https://github.com/#{@repository}@refs/heads/#{@config.fetch('branch')}", digest: {gitCommit: receipt.fetch(:commit)}}]
-						},
-						runDetails: {builder: {id: "https://github.com/actions/runner/github-hosted"}, metadata: {invocationId: "https://github.com/#{@repository}/actions/runs/#{ENV.fetch('GITHUB_RUN_ID')}/attempts/#{ENV.fetch('GITHUB_RUN_ATTEMPT')}"}}
-					}
+				def verify_provenance(package)
+					ref = "refs/heads/#{@config.fetch('branch')}"
+					identity = "https://github.com/#{@repository}/.github/workflows/release-publish.yaml@#{ref}"
+					# The signed receipt binds the package digest to the release commit, independently of the workflow revision.
+					[package, File.join(@root, "pkg", "release.json")].each do |file|
+						system("gh", "attestation", "verify", file, "--repo", @repository, "--bundle", File.join(@root, "pkg", "provenance.sigstore.json"), "--cert-identity", identity, "--source-ref", ref, "--deny-self-hosted-runners", chdir: @root)
+					end
 				end
 				
 				def registry_digest(name, version)

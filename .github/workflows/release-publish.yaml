@@ -73,14 +73,14 @@ jobs:
         env:
           PACKAGE: ${{ steps.build.outputs.package }}
         run: gem exec sigstore-cli:0.2.3 sign "$PACKAGE" --bundle "$PACKAGE.sigstore.json"
-      - name: Attest exact source and artifact
+      - name: Attest gem and release receipt
         if: steps.build.outputs.restored != 'true'
         id: attest
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
-          subject-path: ${{ steps.build.outputs.package }}
-          predicate-type: https://slsa.dev/provenance/v1
-          predicate-path: pkg/provenance.json
+          subject-path: |
+            ${{ steps.build.outputs.package }}
+            pkg/release.json
       - name: Retain provenance bundle
         if: steps.build.outputs.restored != 'true'
         env:
