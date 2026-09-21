@@ -13,6 +13,10 @@ module Bake
 		module GitHub
 			# Builds one artifact, preserves it before upload, and resumes without moving existing tags.
 			class Publisher < Project
+				# A registered package is not yet available from the download service.
+				class RegistryPending < RuntimeError
+				end
+				
 				# Build or restore this workflow run's artifact, after validating the actual merged commit.
 				def build(number)
 					guard_environment
@@ -23,24 +27,34 @@ module Bake
 					artifact = "release-#{evidence.fetch(:commit)}"
 					run = ENV.fetch("GITHUB_RUN_ID")
 					artifacts = api("actions/runs/#{run}/artifacts?per_page=100").fetch("artifacts")
-					if retained = artifacts.find{|entry| entry.fetch("name") == artifact}
-						raise "Retained artifact expired; restore it from the GitHub release before retrying." if retained.fetch("expired")
+					retained = artifacts.find{|entry| entry.fetch("name") == artifact}
+					if retained && !retained.fetch("expired")
 						system("gh", "run", "download", run, "--repo", @repository, "--name", artifact, "--dir", path, chdir: @root)
-						receipt = load_receipt
-						[:name, :version, :commit, :repository, :pull_request].each do |key|
-							raise "Retained artifact has different #{key}." unless receipt[key] == evidence[key]
+					elsif release = github_release("v#{evidence.fetch(:version)}")
+						guard_release(release, evidence.fetch(:commit))
+						filename = "#{evidence.fetch(:name)}-#{evidence.fetch(:version)}.gem"
+						files = release_files(file: filename)
+						names = release.fetch("assets").map{|asset| asset.fetch("name")}
+						raise "Retained release is incomplete; restore the original files before retrying." unless files.all?{|file| names.include?(File.basename(file))}
+						system("gh", "release", "download", release.fetch("tag_name"), "--repo", @repository, "--dir", path, *files.flat_map{|file| ["--pattern", File.basename(file)]}, chdir: @root)
+					elsif retained
+						raise "Retained artifact expired and no GitHub release is available. Restore the original files before retrying."
+					else
+						filename = "#{evidence.fetch(:name)}-#{evidence.fetch(:version)}.gem"
+						if registry_digest(evidence.fetch(:name), evidence.fetch(:version))
+							raise "Version is already published but this run has no retained artifact. Restore the original artifact; do not rebuild."
 						end
-						return output(receipt, restored: true)
+						package = build_package(path)
+						raise "Unexpected package filename." unless File.basename(package) == filename
+						receipt = evidence.merge(file: filename, sha256: Digest::SHA256.file(package).hexdigest, run_id: run, signing: @config.fetch("signing"))
+						File.write(File.join(path, "release.json"), JSON.pretty_generate(receipt) + "\n")
+						return output(receipt, restored: false)
 					end
-					filename = "#{evidence.fetch(:name)}-#{evidence.fetch(:version)}.gem"
-					if registry_digest(evidence.fetch(:name), evidence.fetch(:version))
-						raise "Version is already published but this run has no retained artifact. Restore the original artifact; do not rebuild."
+					receipt = load_receipt
+					[:name, :version, :commit, :repository, :pull_request].each do |key|
+						raise "Retained artifact has different #{key}." unless receipt[key] == evidence[key]
 					end
-					package = build_package(path)
-					raise "Unexpected package filename." unless File.basename(package) == filename
-					receipt = evidence.merge(file: filename, sha256: Digest::SHA256.file(package).hexdigest, run_id: run, signing: @config.fetch("signing"))
-					File.write(File.join(path, "release.json"), JSON.pretty_generate(receipt) + "\n")
-					output(receipt, restored: false)
+					output(receipt, restored: true)
 				end
 				
 				# Verify both attestations, upload exactly those bytes, then create only the intended tag and release.
@@ -65,37 +79,19 @@ module Bake
 					remote_digest = registry_digest(receipt.fetch(:name), receipt.fetch(:version))
 					if remote_digest
 						raise "Published version has different bytes." unless remote_digest == receipt.fetch(:sha256)
-					else
+					end
+					# Keep verified bytes independently of workflow attempts before uploading:
+					release = preserve_release(receipt)
+					unless remote_digest
 						gem_command("push", package, "--host", "https://rubygems.org", "--attestation", bundle)
 					end
-					# A failed read after upload is recoverable by rerunning the same workflow.
-					raise "Registry artifact does not match; retry after registry propagation." unless registry_digest(receipt.fetch(:name), receipt.fetch(:version)) == receipt.fetch(:sha256)
-					attestations = registry_get("https://rubygems.org/api/v1/attestations/#{receipt.fetch(:name)}-#{receipt.fetch(:version)}.json")
-					raise "Registry attestation is missing." unless attestations
-					registry_bundles = JSON.parse(attestations)
-					local_bundle = JSON.parse(File.read(bundle))
-					raise "Registry does not contain this artifact's Sigstore bundle." unless contains_bundle?(registry_bundles, local_bundle)
+					verify_registry(receipt, bundle)
 					unless readlines("git", "tag", "--list", tag, chdir: @root).any?
 						system("git", "tag", tag, receipt.fetch(:commit), chdir: @root)
 					end
 					system("git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "origin", "refs/tags/#{tag}", chdir: @root)
-					releases = JSON.parse(readlines("gh", "release", "list", "--repo", @repository, "--limit", "1000", "--json", "tagName", chdir: @root).join)
-					unless releases.any?{|entry| entry.fetch("tagName") == tag}
-						Tempfile.create("release-notes") do |file|
-							file.write("#{receipt.fetch(:pull_request_url)}\n\nSource: #{receipt.fetch(:commit)}\nSHA256: #{receipt.fetch(:sha256)}\n\nSee releases.md at the release tag for release notes.\n")
-							file.flush
-							system("gh", "release", "create", tag, "--repo", @repository, "--verify-tag", "--title", "#{receipt.fetch(:name)} #{tag}", "--notes-file", file.path, chdir: @root)
-						end
-					end
-					# Existing immutable assets are checked before upload; never clobber them.
-					assets = api("releases/tags/#{tag}").fetch("assets")
-					[package, bundle, File.join(@root, "pkg", "release.json"), File.join(@root, "pkg", "provenance.sigstore.json")].each do |file|
-						if existing = assets.find{|asset| asset.fetch("name") == File.basename(file)}
-							digest = existing.fetch("digest")
-							raise "Existing release asset differs: #{file}" unless digest == "sha256:#{Digest::SHA256.file(file).hexdigest}"
-						else
-							system("gh", "release", "upload", tag, file, "--repo", @repository, chdir: @root)
-						end
+					if release.fetch("draft")
+						system("gh", "release", "edit", tag, "--repo", @repository, "--draft=false", "--verify-tag", chdir: @root)
 					end
 					receipt
 				end
@@ -119,6 +115,68 @@ module Bake
 				end
 				
 				private
+				
+				def github_release(tag)
+					pages = JSON.parse(readlines("gh", "api", "--paginate", "--slurp", "repos/#{@repository}/releases?per_page=100", chdir: @root).join)
+					matches = pages.flatten(1).select{|release| release.fetch("tag_name") == tag}
+					raise "Multiple GitHub releases have the same tag." if matches.size > 1
+					matches.first
+				end
+				
+				def guard_release(release, commit)
+					if release.fetch("draft") && release.fetch("target_commitish") != commit
+						raise "Draft release targets another commit."
+					end
+				end
+				
+				def release_files(receipt)
+					[receipt.fetch(:file), "#{receipt.fetch(:file)}.sigstore.json", "release.json", "provenance.sigstore.json"].map{|name| File.join(@root, "pkg", name)}
+				end
+				
+				def preserve_release(receipt)
+					tag = "v#{receipt.fetch(:version)}"
+					release = github_release(tag)
+					unless release
+						Tempfile.create("release-notes") do |file|
+							file.write("#{receipt.fetch(:pull_request_url)}\n\nSource: #{receipt.fetch(:commit)}\nSHA256: #{receipt.fetch(:sha256)}\n\nSee releases.md at the release tag for release notes.\n")
+							file.flush
+							system("gh", "release", "create", tag, "--repo", @repository, "--draft", "--target", receipt.fetch(:commit), "--title", "#{receipt.fetch(:name)} #{tag}", "--notes-file", file.path, chdir: @root)
+						end
+						release = github_release(tag) or raise "Draft release was not retained."
+					end
+					guard_release(release, receipt.fetch(:commit))
+					assets = release.fetch("assets")
+					release_files(receipt).each do |file|
+						if existing = assets.find{|asset| asset.fetch("name") == File.basename(file)}
+							raise "Existing release asset differs: #{file}" unless existing.fetch("digest") == "sha256:#{Digest::SHA256.file(file).hexdigest}"
+						else
+							system("gh", "release", "upload", tag, file, "--repo", @repository, chdir: @root)
+						end
+					end
+					release
+				end
+				
+				def verify_registry(receipt, bundle, attempts: 7, delay: 10)
+					local_bundle = JSON.parse(File.read(bundle))
+					attempts.times do |attempt|
+						begin
+							if digest = registry_digest(receipt.fetch(:name), receipt.fetch(:version))
+								raise "Published version has different bytes." unless digest == receipt.fetch(:sha256)
+								if attestations = registry_get("https://rubygems.org/api/v1/attestations/#{receipt.fetch(:name)}-#{receipt.fetch(:version)}.json")
+									raise "Registry does not contain this artifact's Sigstore bundle." unless contains_bundle?(JSON.parse(attestations), local_bundle)
+									return
+								end
+							end
+						rescue RegistryPending
+							# The version API can become visible before the gem download:
+						end
+						if attempt < attempts - 1
+							Console.info(self, "Waiting for RubyGems to serve the release.")
+							sleep(delay)
+						end
+					end
+					raise "Registry propagation did not complete; rerun this workflow to resume from the retained release."
+				end
 				
 				def gem_command(*arguments)
 					if defined?(::Bundler)
@@ -193,7 +251,7 @@ module Bake
 					# Missing downloads can return 403; use the version API to establish absence.
 					return nil unless registry_get("https://rubygems.org/api/v2/rubygems/#{name}/versions/#{version}.json?platform=ruby")
 					body = registry_get("https://rubygems.org/downloads/#{name}-#{version}.gem")
-					raise "Published gem download is missing; retry after registry propagation." unless body
+					raise RegistryPending, "Published gem download is missing; retry after registry propagation." unless body
 					Digest::SHA256.hexdigest(body)
 				end
 				

@@ -95,9 +95,11 @@ Use **Re-run all jobs** on the original publishing run, or:
 bundle exec bake gem:github:release:resume run=RUN_ID
 ```
 
-Rerunning keeps the original event identity. A retained artifact is downloaded and its source identity/digest checked. A matching registry version resumes tag/release finalization; different bytes or a conflicting tag stop. There is no automatic yank, retag, or rebuild of an already-published version. If failure occurs before artifact retention, rebuilding is safe because uploading has not started.
+Rerunning keeps the original event identity. A retained artifact is downloaded and its source identity/digest checked. A matching registry version resumes tag/release finalization; different bytes or a conflicting tag stop. There is no automatic yank, retag, or rebuild of an already-published version. Registry propagation is retried every ten seconds for up to one minute; a digest or attestation mismatch fails immediately.
 
-Artifacts are retained for 90 days and copied to GitHub release assets on success. If the workflow artifact expires before finalization, manual recovery from the preserved bytes is required; do not dispatch a replacement build. GitHub concurrency does not guarantee a durable FIFO queue: rerun any publishing run displaced while pending. Resume reruns all jobs, including integrity checks; it does not repeat or second-guess the native review policy or a permitted administrator bypass.
+Before uploading to RubyGems, the publisher stores the verified gem, receipt and both attestation bundles in a draft GitHub release targeting the merged commit. It publishes the draft after registry verification and tag creation. Actions artifacts are also retained for 90 days, but can disappear on rerun. Recovery falls back to the draft or published release and verifies the original bytes and attestations. Keep the draft until finalization succeeds. If asset preservation was interrupted and neither backup is complete, restore the missing original files before retrying; conflicting assets are never overwritten.
+
+GitHub concurrency does not guarantee a durable FIFO queue: rerun any publishing run displaced while pending. Resume reruns all jobs, including integrity checks; it does not repeat or second-guess the native review policy or a permitted administrator bypass. Older publishing runs execute their original code; adding this recovery support to the default branch does not change an already-triggered workflow.
 
 ## Development and current limits
 
