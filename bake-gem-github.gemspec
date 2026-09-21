@@ -14,6 +14,7 @@ Gem::Specification.new do |spec|
 	spec.files = Dir.glob(["{bake,context,lib,templates}/**/*", "*.md", "release.cert"], base: __dir__)
 	spec.required_ruby_version = ">= 3.3"
 	spec.add_dependency "bake-gem", ">= 0.15.0"
+	spec.add_dependency "bake-releases", "~> 0.6"
 	spec.add_dependency "net-http"
 	spec.add_dependency "bake", "~> 0.25"
 end

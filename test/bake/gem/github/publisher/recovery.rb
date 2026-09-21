@@ -29,6 +29,74 @@ describe "Publication recovery" do
 		Bake::Context.load(root).call("gem:github:release:build", "number=42")
 	end
 	
+	it "includes notes for the exact released version before the artifact metadata" do
+		File.write(File.join(root, "releases.md"), <<~MARKDOWN)
+			# Releases
+			
+			## Unreleased
+			
+			Future changes.
+			
+			## v2.0.0
+			
+			Newer release.
+			
+			## v1.0.1
+			
+			  - Fixed a `bug`.
+			
+			### Details
+			
+			Read the [guide](https://example.com/guide).
+			
+			## v1.0.0
+			
+			Older release.
+		MARKDOWN
+		
+		receipt = @publisher.publish(42)
+		
+		expect(@publisher.releases.first.fetch("body")).to be == <<~MARKDOWN
+			  - Fixed a `bug`.
+			
+			## Details
+			
+			Read the [guide](https://example.com/guide).
+			
+			https://github.com/socketry/example/pull/42
+			
+			Source: #{receipt.fetch(:commit)}
+			SHA256: #{receipt.fetch(:sha256)}
+		MARKDOWN
+	end
+	
+	it "uses the artifact metadata when release notes are missing" do
+		receipt = @publisher.publish(42)
+		
+		expect(@publisher.releases.first.fetch("body")).to be == <<~MARKDOWN
+			https://github.com/socketry/example/pull/42
+			
+			Source: #{receipt.fetch(:commit)}
+			SHA256: #{receipt.fetch(:sha256)}
+		MARKDOWN
+	end
+	
+	it "preserves the existing draft description when finalization is retried" do
+		File.write(File.join(root, "releases.md"), "## v1.0.1\n\nOriginal notes.\n")
+		@publisher.fail_release = true
+		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /GitHub unavailable/)
+		body = @publisher.releases.first.fetch("body") + "\nMaintainer addition.\n"
+		@publisher.releases.first["body"] = body
+		@publisher.fail_release = false
+		restore
+		
+		@publisher.publish(42)
+		
+		expect(@publisher.releases.size).to be == 1
+		expect(@publisher.releases.first.fetch("body")).to be == body
+		expect(@publisher.releases.first.fetch("draft")).to be == false
+	end
+	
 	it "resumes finalization after upload without uploading or rebuilding again" do
 		@publisher.fail_release = true
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /GitHub unavailable/)

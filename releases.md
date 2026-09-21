@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+  - Include the version's release notes in GitHub releases using `bake-releases`.
   - Update generated release files in the working tree with `gem:github:setup:update`.
 
 ## v0.0.5
