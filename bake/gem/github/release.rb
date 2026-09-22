@@ -44,7 +44,7 @@ def resolve(number: ENV["RELEASE_PR"], commit: ENV["RELEASE_COMMIT"])
 		end
 	end
 	
-	result
+	return result
 end
 
 # Build or restore the exact artifact for a merged release PR.
