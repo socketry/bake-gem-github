@@ -31,7 +31,7 @@ jobs:
           bundler-cache: true
       - id: inspect
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           RELEASE_COMMIT: ${{ github.sha }}
         run: bundle exec bake gem:github:release:resolve
 
@@ -67,7 +67,7 @@ jobs:
       - name: Build or restore artifact
         id: build
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
 <% if signing -%>
           GEM_SIGNING_KEY: ${{ secrets.GEM_SIGNING_KEY }}
 <% end -%>
@@ -101,5 +101,5 @@ jobs:
       - uses: rubygems/configure-rubygems-credentials@main
       - name: Verify, publish, and finalize
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: bundle exec bake gem:github:release:publish
