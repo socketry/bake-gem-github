@@ -20,6 +20,9 @@ module Bake
 				end
 				
 				# Build or restore this workflow run's artifact, after validating the actual merged commit.
+				# @parameter number [String | Integer] The merged release PR number.
+				# @returns [Hash] The release receipt. Extends {Project#inspect_release} metadata with `file`, `sha256`, `run_id`, and `signing`; writes the receipt to `pkg/release.json` and Actions outputs when configured.
+				# @raises [RuntimeError] If the workflow identity, source, or retained artifact is invalid, or published bytes cannot be recovered.
 				def build(number)
 					guard_environment
 					evidence = inspect_release(number) or raise "PR does not change the version."
@@ -89,6 +92,10 @@ module Bake
 				end
 				
 				# Verify both attestations, upload exactly those bytes, then create only the intended tag and release.
+				# @parameter number [String | Integer] The merged release PR number.
+				# @returns [Hash] The verified receipt after registry verification and GitHub finalization.
+				# @raises [RuntimeError] If source, signatures, registry content, tags, or release assets conflict, or propagation times out.
+				# @raises [Bake::Gem::CommandExecutionError] If a verification or publishing command fails; rerunning resumes from retained artifacts.
 				def publish(number)
 					guard_environment
 					
@@ -142,6 +149,8 @@ module Bake
 				end
 				
 				# Load artifact evidence and verify the stored digest and filename.
+				# @returns [Hash] The receipt with symbol keys, including the verified `file` and `sha256`.
+				# @raises [RuntimeError] If the package filename is invalid or its bytes do not match the receipt.
 				def load_receipt
 					receipt = JSON.parse(File.read(File.join(@root, "pkg", "release.json")), symbolize_names: true)
 					filename = receipt.fetch(:file)
@@ -152,6 +161,10 @@ module Bake
 				end
 				
 				# Refuse local or remote tag collisions before uploading a package.
+				# @parameter tag [String] The version tag to publish.
+				# @parameter commit [String] The intended release commit.
+				# @returns [Nil] If local and remote tags are absent or already identify the intended commit.
+				# @raises [RuntimeError] If an existing tag identifies another commit.
 				def guard_tag(tag, commit)
 					local = readlines("git", "tag", "--list", tag, chdir: @root)
 					raise "Release tag points to another commit." if local.any? && @release.resolve(tag) != commit

@@ -19,6 +19,14 @@ module Bake
 				end
 				
 				# Generate workflows, policy payloads, and configuration. Refuse conflicting existing files.
+				# @parameter repository [String] The canonical GitHub owner and repository name.
+				# @parameter branch [String] The default branch receiving release PRs.
+				# @parameter checks [Array(String)] Required CI job names; release validation is added automatically.
+				# @parameter approvals [Integer] Required approvals, between one and six.
+				# @parameter signing [Boolean] Whether publishing requires the certificate and matching private key.
+				# @parameter ruby [String] The Ruby version used by release workflows.
+				# @returns [Array(String)] Generated paths relative to the repository root.
+				# @raises [RuntimeError] If configuration is invalid or an existing generated file differs.
 				def generate(repository:, branch: "main", checks:, approvals: 2, signing: File.file?(File.join(@root, "release.cert")), ruby: "3.4")
 					raise "Expected owner/repository." unless repository.match?(/\A[\w.-]+\/[\w.-]+\z/)
 					raise "Unsupported branch name." unless branch.match?(/\A[\w.\/-]+\z/)
@@ -50,6 +58,8 @@ module Bake
 				end
 				
 				# Update generated files in the working tree using the existing configuration; return changed paths.
+				# @returns [Array(String)] Changed paths relative to the repository root.
+				# @raises [RuntimeError] If the configuration schema is unsupported.
 				def update
 					config = YAML.safe_load_file(File.join(@root, "config/release.yaml"))
 					raise "Unsupported release configuration." unless config.fetch("schema") == 1
@@ -58,6 +68,8 @@ module Bake
 				end
 				
 				# Native review/check rules allow PR-only administrator bypass; history rules have no bypass.
+				# @parameter config [Hash] Release configuration with string keys: `branch`, `approvals`, and `checks`.
+				# @returns [Hash] Ruleset payloads keyed by `reviews`, `checks`, `history`, and `tags`.
 				def self.rules(config)
 					conditions = {ref_name: {include: ["refs/heads/#{config.fetch('branch')}"], exclude: []}}
 					common = {target: "branch", enforcement: "active", conditions: conditions}
