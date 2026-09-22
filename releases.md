@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.3.0
 
   - Configure publishing environment reviewers through release setup while preserving existing environment protections.
   - Stop generating `.github/releasing.md`; release instructions are maintained in the shared guide and agent context.
