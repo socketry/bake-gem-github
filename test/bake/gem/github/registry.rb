@@ -3,13 +3,13 @@
 # Released under the MIT License.
 # Copyright, 2026, by Samuel Williams.
 
-require "bake/gem/github/publisher"
+require "bake/gem/github/registry"
 require "sus/fixtures/temporary_directory_context"
 
-describe Bake::Gem::GitHub::Publisher do
-	with "#verify_registry" do
+describe Bake::Gem::GitHub::Registry do
+	with "#verify" do
 		include Sus::Fixtures::TemporaryDirectoryContext
-		let(:publisher) {subject.allocate}
+		let(:registry) {subject.new}
 		let(:receipt) {{name: "example", version: "1.0.1", sha256: "expected"}}
 		let(:bundle) {File.join(root, "bundle.json")}
 		let(:digests) {["expected"]}
@@ -18,23 +18,23 @@ describe Bake::Gem::GitHub::Publisher do
 		
 		before do
 			File.write(bundle, JSON.generate(mediaType: "test"))
-			mock(publisher) do |wrapper|
-				wrapper.replace(:registry_digest) do |*arguments|
+			mock(registry) do |wrapper|
+				wrapper.replace(:digest) do |*arguments|
 					result = digests.shift
 					raise result if result.is_a?(Exception)
 					result
 				end
-				wrapper.replace(:registry_get){|url| attestations.shift}
+				wrapper.replace(:get){|url| attestations.shift}
 				wrapper.replace(:sleep){|delay| waits << delay}
 			end
 		end
 		
 		def verify
-			publisher.send(:verify_registry, receipt, bundle, attempts: 3, delay: 10)
+			registry.verify(receipt, bundle, attempts: 3, delay: 10)
 		end
 		
 		it "waits for an absent version and a pending download without uploading again" do
-			digests.unshift(nil, Bake::Gem::GitHub::Publisher::RegistryPending.new("pending"))
+			digests.unshift(nil, Bake::Gem::GitHub::Registry::Pending.new("pending"))
 			
 			expect{verify}.not.to raise_exception
 			expect(waits).to be == [10, 10]
@@ -77,8 +77,9 @@ describe Bake::Gem::GitHub::Publisher do
 		end
 	end
 	
-	with "#registry_digest" do
-		let(:publisher) {subject.allocate}
+	with "#digest" do
+		let(:transport) {Object.new}
+		let(:registry) {subject.new(http: transport)}
 		let(:http) {Object.new}
 		let(:responses) {{}}
 		let(:version_path) {"/api/v2/rubygems/example/versions/1.0.1.json?platform=ruby"}
@@ -96,7 +97,7 @@ describe Bake::Gem::GitHub::Publisher do
 			mock(http) do |wrapper|
 				wrapper.replace(:get){|path| responses.fetch(path)}
 			end
-			mock(Net::HTTP) do |wrapper|
+			mock(transport) do |wrapper|
 				wrapper.replace(:start) do |*arguments, **options, &block|
 					block.call(http)
 				end
@@ -106,21 +107,21 @@ describe Bake::Gem::GitHub::Publisher do
 		it "recognizes an unpublished version without requesting the missing download" do
 			responses[version_path] = response("404")
 			
-			expect(publisher.send(:registry_digest, "example", "1.0.1")).to be_nil
+			expect(registry.digest("example", "1.0.1")).to be_nil
 		end
 		
 		it "hashes the actual published package bytes" do
 			responses[version_path] = response("200", "{}")
 			responses[download_path] = response("200", "gem bytes\x00\xff".b)
 			
-			expect(publisher.send(:registry_digest, "example", "1.0.1")).to be == Digest::SHA256.hexdigest("gem bytes\x00\xff".b)
+			expect(registry.digest("example", "1.0.1")).to be == Digest::SHA256.hexdigest("gem bytes\x00\xff".b)
 		end
 		
 		["403", "500"].each do |code|
 			it "rejects version API errors", unique: code do
 				responses[version_path] = response(code)
 				
-				expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be == "Registry request failed: #{code}")
+				expect{registry.digest("example", "1.0.1")}.to raise_exception(RuntimeError, message: be == "Registry request failed: #{code}")
 			end
 		end
 		
@@ -128,14 +129,14 @@ describe Bake::Gem::GitHub::Publisher do
 			responses[version_path] = response("200", "{}")
 			responses[download_path] = response("403")
 			
-			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be == "Registry request failed: 403")
+			expect{registry.digest("example", "1.0.1")}.to raise_exception(RuntimeError, message: be == "Registry request failed: 403")
 		end
 		
 		it "rejects a missing download for an existing version" do
 			responses[version_path] = response("200", "{}")
 			responses[download_path] = response("404")
 			
-			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /Published gem download is missing/)
+			expect{registry.digest("example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /Published gem download is missing/)
 		end
 		
 		it "follows HTTPS redirects relative to the registry URL" do
@@ -144,21 +145,21 @@ describe Bake::Gem::GitHub::Publisher do
 			responses["/version.json"] = response("200", "{}")
 			responses[download_path] = response("200", "gem bytes")
 			
-			expect(publisher.send(:registry_digest, "example", "1.0.1")).to be == Digest::SHA256.hexdigest("gem bytes")
+			expect(registry.digest("example", "1.0.1")).to be == Digest::SHA256.hexdigest("gem bytes")
 		end
 		
 		it "rejects a redirect to an unencrypted download" do
 			responses[version_path] = response("302")
 			responses[version_path]["location"] = "http://rubygems.org/version.json"
 			
-			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /requires HTTPS/)
+			expect{registry.digest("example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /requires HTTPS/)
 		end
 		
 		it "bounds registry redirect loops" do
 			responses[version_path] = response("302")
 			responses[version_path]["location"] = version_path
 			
-			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /Too many registry redirects/)
+			expect{registry.digest("example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /Too many registry redirects/)
 		end
 	end
 end

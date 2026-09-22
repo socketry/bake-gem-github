@@ -8,6 +8,23 @@ require "bake/gem/github/publisher"
 module Bake
 	module Gem
 		module GitHub
+			# Use the real propagation verifier against simulated published content.
+			class RecoveryRegistry < Registry
+				def initialize(publisher)
+					@publisher = publisher
+				end
+				
+				def digest(name, version)
+					@publisher.remote_digest
+				end
+				
+				private
+				
+				def get(url)
+					JSON.generate([{bundle: {mediaType: "test"}}])
+				end
+			end
+			
 			# A simulated registry and GitHub finalizer. Core content validation has its own
 			# real-repository integration tests; this fixture exercises interruption/retry.
 			class RecoveryPublisher < Publisher
@@ -16,7 +33,7 @@ module Bake
 				attr_reader :commands, :stored_files
 				
 				def initialize(root)
-					super
+					super(root, registry: RecoveryRegistry.new(self))
 					@commands = []
 					@releases = []
 					@artifacts = []
@@ -96,13 +113,6 @@ module Bake
 				def guard_environment
 				end
 				
-				def registry_digest(name, version)
-					@remote_digest
-				end
-				
-				def registry_get(url)
-					JSON.generate([{bundle: {mediaType: "test"}}])
-				end
 			end
 		end
 	end
