@@ -65,10 +65,10 @@ describe "GitHub release tasks" do
 	end
 	
 	with "gem:github:release:resolve" do
-		[false, true].each do |release|
-			it "writes workflow outputs for the actual merged PR", unique: release do
+		["number", "commit"].product([false, true]).each do |source, release|
+			it "writes workflow outputs for the exact merged PR", unique: [source, release] do
 				output = File.join(root, "output")
-				result = isolated_project(<<~'RUBY', env: {"RELEASE" => release.to_s, "RELEASE_PR" => "42", "GITHUB_OUTPUT" => output})
+				result = isolated_project(<<~'RUBY', env: {"SOURCE" => source, "RELEASE" => release.to_s, "RELEASE_PR" => nil, "RELEASE_COMMIT" => nil, "GITHUB_OUTPUT" => output})
 					require "sus/mock"
 					project = Bake::Gem::GitHub::ProjectClient.new(Dir.pwd)
 					context = Bake::Context.load(Dir.pwd)
@@ -81,16 +81,24 @@ describe "GitHub release tasks" do
 					end
 					project.system("git", "push", "--quiet", "origin", "main")
 					commit = project.readlines("git", "rev-parse", "HEAD").join.strip
-					project.responses["repos/socketry/example/pulls/42"] = {
-						"number" => 42, "merged" => true, "base" => {"ref" => "main", "repo" => {"full_name" => "socketry/example"}},
+					pull = {
+						"number" => 42, "merged" => true, "merged_at" => "2026-09-22T00:00:00Z",
+						"base" => {"ref" => "main", "repo" => {"full_name" => "socketry/example"}},
 						"merge_commit_sha" => commit, "html_url" => "https://github.com/socketry/example/pull/42"
 					}
+					project.responses["repos/socketry/example/commits/#{commit}/pulls?per_page=100"] = [[pull]]
+					project.responses["repos/socketry/example/pulls/42"] = pull
 					Sus::Mock.new(Bake::Gem::GitHub::Project).replace(:new){project}
+					if ENV.fetch("SOURCE") == "commit"
+						ENV["RELEASE_COMMIT"] = commit
+					else
+						ENV["RELEASE_PR"] = "42"
+					end
 					context.call("gem:github:release:resolve")
 				RUBY
 				
 				expect(result.nil?).to be == !release
-				expect(File.readlines(output, chomp: true)).to be == (release ? ["release=true", "commit=#{git('rev-parse', 'HEAD')}"] : ["release=false"])
+				expect(File.readlines(output, chomp: true)).to be == (release ? ["release=true", "commit=#{git('rev-parse', 'HEAD')}", "pull_request=42"] : ["release=false"])
 			end
 		end
 	end

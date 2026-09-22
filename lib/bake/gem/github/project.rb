@@ -111,10 +111,12 @@ module Bake
 				
 				# Resolve release identity; ordinary merged PRs do not publish.
 				# @parameter number [String | Integer] The merged PR number.
+				# @parameter commit [String | Nil] The expected merge commit, when resolving a push event.
 				# @returns [Hash | Nil] Release metadata with symbol keys, or nil for an ordinary PR. Includes `name`, `version`, `commit`, `base`, `bump`, `repository`, `pull_request`, `merged_by`, and `pull_request_url`.
 				# @raises [RuntimeError] If the merged source does not match the independently generated release.
-				def inspect_release(number)
+				def inspect_release(number, commit: nil)
 					pr = merged(number)
+					raise "PR merge commit does not match the pushed commit." if commit && pr.fetch("merge_commit_sha") != commit
 					
 					commit = pr.fetch("merge_commit_sha")
 					metadata = @release.validate(base: "#{commit}^1", candidate: commit, optional: true)
@@ -126,6 +128,31 @@ module Bake
 							pull_request_url: pr.fetch("html_url"),
 						)
 					end
+				end
+				
+				# Resolve a pushed release commit to the PR which merged it into the configured branch.
+				# @parameter commit [String] The full commit SHA from the push event.
+				# @returns [Hash | Nil] Release metadata from {inspect_release}, or nil for an ordinary change.
+				# @raises [RuntimeError] If the commit is invalid or a release has no unique matching merged PR.
+				# @raises [Bake::Gem::CommandExecutionError] If Git or GitHub cannot verify the release.
+				def inspect_commit(commit)
+					raise "Expected a full pushed commit SHA." unless commit.match?(/\A(?:[0-9a-f]{40}|[0-9a-f]{64})\z/)
+					responses = readlines(
+						"gh", "api", "repos/#{@repository}/commits/#{commit}/pulls?per_page=100",
+						"--paginate", "--slurp", chdir: @root,
+					)
+					pulls = JSON.parse(responses.join).flatten(1).select do |pr|
+						pr["merged_at"] && pr["merge_commit_sha"] == commit &&
+							pr.dig("base", "ref") == @config.fetch("branch") && pr.dig("base", "repo", "full_name") == @repository
+					end
+					
+					if pulls.empty?
+						return nil unless @release.validate(base: "#{commit}^1", candidate: commit, optional: true)
+						raise "Release commit has no matching merged PR."
+					end
+					raise "Multiple merged PRs match the pushed commit." if pulls.size > 1
+					
+					return inspect_release(pulls.first.fetch("number"), commit: commit)
 				end
 				
 				# Return a read-only comparison of managed settings and current repository settings.

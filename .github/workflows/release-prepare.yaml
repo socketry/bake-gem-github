@@ -40,7 +40,7 @@ jobs:
           bundler-cache: true
       - name: Create release PR
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           BUMP: ${{ inputs.bump }}
           REFRESH: ${{ inputs.refresh }}
         run: |

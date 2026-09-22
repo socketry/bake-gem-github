@@ -4,7 +4,7 @@ This guide explains how to configure reviewed Ruby gem releases and prepare the 
 
 ## How releases work
 
-Maintainers prepare a release PR containing the version bump and generated release notes. CI regenerates those changes from the current base to verify the content. Native GitHub rules control approval and merging; after merge, GitHub Actions builds the exact merged commit and publishes its verified artifact to RubyGems.
+Maintainers prepare a release PR containing the version bump and generated release notes. CI regenerates those changes from the current base to verify the content. Native GitHub rules control approval and merging. A push to the default branch starts release inspection; GitHub Actions builds the exact pushed commit only when it is a validated, merged release PR, then publishes its verified artifact to RubyGems.
 
 `bake-gem` provides version updates, release hooks, and clean builds. `bake-gem-github` adds PR preparation, GitHub policy, and remote publishing. The supported process uses one gemspec, stable three-part versions, merge or squash merging, and RubyGems.org.
 
@@ -110,6 +110,8 @@ git diff
 ```
 
 This updates managed files in the working tree and returns their changed paths. Review the diff and selectively retain repository customizations before committing. The task does not stage, commit, or change remote settings. Repeated updates produce no further changes unless customizations differ from the templates. Apply changed rulesets after the corresponding workflows are running.
+
+Regenerate existing workflows to adopt publishing on `push` instead of `pull_request_target`. The workflow filename and `rubygems` environment remain the same, so the RubyGems Trusted Publisher configuration does not change. No exception to GitHub's `pull_request_target` execution policy is needed. The resolve task continues to accept PR numbers from older workflows while you migrate.
 
 The release workflows follow `bake modernize` action versions and use moving major tags where available. The RubyGems credentials action uses its [documented `@main` reference](https://github.com/rubygems/configure-rubygems-credentials#trusted-publisher-recommended). Repositories that require fixed revisions can customize these references.
 

@@ -75,7 +75,7 @@ describe Bake::Gem::GitHub::Setup do
 		expect(validation).not.to be(:include?, "pull_request_target")
 		publish = File.read(File.join(root, ".github/workflows/release-publish.yaml"))
 		
-		expect(publish).to be(:include?, "github.event.pull_request.merged == true")
+		expect(publish).not.to be(:include?, "pull_request_target")
 		expect(publish.index("actions/upload-artifact@")).to be < publish.index("rubygems/configure-rubygems-credentials@")
 		expect(publish).not.to be(:include?, "GEM_SIGNING_KEY")
 	end
@@ -89,22 +89,31 @@ describe Bake::Gem::GitHub::Setup do
 		expect(File.read(path)).to be == "Custom workflow\n"
 	end
 	
-	it "permits a fork checkout only after merged release inspection" do
-		generate
+	it "pins the pushed commit and queues only validated releases for environment approval" do
+		setup.generate(repository: "socketry/example", branch: "stable", checks: ["Tests"], signing: false)
 		workflow = YAML.safe_load_file(File.join(root, ".github/workflows/release-publish.yaml"))
+		
+		expect(workflow.fetch(true)).to be == {"push" => {"branches" => ["stable"]}}
+		expect(workflow).not.to have_keys("concurrency")
 		inspect = workflow.fetch("jobs").fetch("inspect")
 		
-		expect(inspect.fetch("if")).to be == "github.event.pull_request.merged == true"
-		expect(inspect.fetch("steps").first.fetch("with")).not.to have_keys("allow-unsafe-pr-checkout", "ref")
+		expect(inspect).not.to have_keys("if", "environment", "concurrency")
+		expect(inspect.fetch("steps").first.fetch("with")).to have_keys("ref" => be == "${{ github.sha }}", "persist-credentials" => be == false)
+		expect(inspect.fetch("steps").first.fetch("with")).not.to have_keys("allow-unsafe-pr-checkout")
 		expect(inspect.fetch("steps").last.fetch("run")).to be == "bundle exec bake gem:github:release:resolve"
+		expect(inspect.fetch("steps").last.fetch("env")).to have_keys("RELEASE_COMMIT" => be == "${{ github.sha }}")
+		expect(inspect.fetch("outputs")).to have_keys("pull_request" => be == "${{ steps.inspect.outputs.pull_request }}")
 		publish = workflow.fetch("jobs").fetch("publish")
 		
 		expect(publish.fetch("needs")).to be == "inspect"
 		expect(publish.fetch("if")).to be == "needs.inspect.outputs.release == 'true'"
+		expect(publish.fetch("environment")).to be == "rubygems"
+		expect(publish.fetch("env")).to have_keys("RELEASE_PR" => be == "${{ needs.inspect.outputs.pull_request }}")
+		expect(publish.fetch("concurrency")).to be == {"group" => "release-publish", "cancel-in-progress" => false, "queue" => "max"}
 		checkout = publish.fetch("steps").first.fetch("with")
 		
 		expect(checkout.fetch("ref")).to be == "${{ needs.inspect.outputs.commit }}"
-		expect(checkout.fetch("allow-unsafe-pr-checkout")).to be == true
+		expect(checkout).not.to have_keys("allow-unsafe-pr-checkout")
 		%w[prepare validate].each do |name|
 			workflow = File.read(File.join(root, ".github/workflows/release-#{name}.yaml"))
 			

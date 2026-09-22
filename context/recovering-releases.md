@@ -24,4 +24,6 @@ A rerun can recover an interrupted individual asset upload once `release.tar` is
 
 ## Understand workflow reruns
 
-GitHub concurrency does not guarantee a durable FIFO queue: rerun any publishing run displaced while pending. Resume reruns all jobs, including integrity checks; it does not repeat or second-guess the native review policy or a permitted administrator bypass. Older publishing runs execute their original code; adding this recovery support to the default branch does not change an already-triggered workflow.
+Only publishing jobs share a concurrency group. They use `queue: max`, allowing up to 100 pending publishing jobs without replacing earlier ones; ordinary pushes only run inspection and do not enter this queue. GitHub cancels additional jobs if that limit is reached. Rerun a canceled publishing workflow after capacity becomes available.
+
+Resume reruns all jobs against the original pushed commit, including integrity checks; it does not repeat or second-guess the native review policy or a permitted administrator bypass. Older publishing runs execute their original code and concurrency policy; updating the default branch does not change an already-triggered workflow.
