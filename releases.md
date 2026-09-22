@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Support rebase merging by requiring each release PR to contain exactly one commit, while leaving ordinary PRs unrestricted. Generated rules allow merge, squash, and rebase methods according to repository settings.
+
 ## v0.4.0
 
   - Reject Secret environment reviewer teams before applying release settings, and verify that GitHub retained the requested reviewers and existing protections after updating the environment.

@@ -6,7 +6,7 @@ Use this when checking a completed release or confirming which source commit pro
 
 ## What publishing verifies
 
-After merge/squash, the publishing workflow verifies GitHub's merged PR record and ancestry, then checks out the exact merged commit. Later development on the default branch is allowed. It regenerates against the merged commit's **first parent**, builds in a clean worktree, optionally certificate-signs, and creates two attestations over the final bytes:
+After squash, rebase, or merge, the publishing workflow verifies GitHub's merged PR record and ancestry, then checks out the exact resulting commit. Each release PR contains one commit, so the resulting commit's **first parent** is the default branch immediately before the release landed. Later development on the default branch is allowed. Publishing regenerates against that first parent, builds in a clean worktree, optionally certificate-signs, and creates two attestations over the final bytes:
 
 - A Sigstore bundle submitted explicitly with `gem push --attestation` using RubyGems 4.0.21.
 - GitHub's native SLSA provenance covering both the gem and `release.json`. This signed receipt binds the gem digest to the exact release commit, even when the workflow's own default-branch revision is newer.

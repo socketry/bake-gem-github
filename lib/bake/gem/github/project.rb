@@ -78,7 +78,7 @@ module Bake
 						candidate = @release.resolve("HEAD")
 					end
 					
-					metadata = @release.validate(base: base, candidate: candidate)
+					metadata = validate(base: base, candidate: candidate, optional: false)
 					raise "Release branch does not contain the requested version #{version}." unless metadata.fetch(:version) == version
 					
 					push("--force-with-lease=#{release_ref}:#{remote_commit}", "#{candidate}:#{release_ref}")
@@ -88,6 +88,23 @@ module Bake
 						helper.gemspec.name, version,
 						branch: branch, release_branch: release_branch, base: base,
 					)
+				end
+				
+				# Validate PR content and require each proposed release to contain exactly one commit.
+				# @parameter base [String] The current target commit.
+				# @parameter candidate [String] The proposed PR head.
+				# @parameter optional [Boolean] Accept ordinary PRs without a version change.
+				# @returns [Hash | Nil] Release metadata, or nil for an ordinary PR.
+				# @raises [RuntimeError] If the release content is invalid or the release contains multiple commits.
+				def validate(base:, candidate: "HEAD", optional: true)
+					metadata = @release.validate(base: base, candidate: candidate, optional: optional)
+					if metadata
+						range = "#{metadata.fetch(:base)}..#{metadata.fetch(:commit)}"
+						count = readlines("git", "rev-list", "--count", range, chdir: @root).join.strip
+						raise "Release PRs must contain exactly one commit. Amend or regenerate the release commit instead of adding commits." unless count == "1"
+					end
+					
+					return metadata
 				end
 				
 				# Resolve a merged PR through GitHub, and require its actual merge commit in default-branch history.
