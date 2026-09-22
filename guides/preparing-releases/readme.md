@@ -21,6 +21,14 @@ Replace `patch` with `minor` or `major`. The wrapper fetches the default branch 
 
 All release changes belong in the PR. Core preparation commits additions and deletions from release hooks but never pushes, tags or publishes. Validation independently generates the expected tree from the current base. A changed base SHA alone is fine; changed generated notes are not. Ordinary PRs with no version change pass release validation and still build unsigned.
 
+## Publish the merged release
+
+Merging into the configured default branch triggers `release-publish.yaml` through its `push` event. Inspection uses the exact pushed SHA and resolves its associated PR through GitHub. Publication requires one matching merged PR in this repository, targeting the configured branch, with that exact merge commit. Ordinary changes do not publish; release changes without a matching merged PR fail inspection. Both merge commits and squash merges are supported, including merged fork PRs.
+
+Each release must land as the tip of its own push, as it does when merging a PR through GitHub. Later pushes do not change a pending release's source: inspection and publishing remain pinned to the original commit, and reruns use the same event. Do not combine a release and later changes into one direct push. If you automate merging, use a GitHub App or personal access token; pushes made using a workflow's `GITHUB_TOKEN` do not trigger another workflow.
+
+Only validated releases enter the publishing queue and request approval from the `rubygems` environment when required. Ordinary pushes cannot replace them in that queue. The publishing job retains the existing signing, attestation, and artifact recovery checks.
+
 ## Resume interrupted preparation
 
 If preparation stops after creating or pushing the release branch, return to the current default branch and repeat the same command. The existing branch is validated and reused, so retries do not create a second version bump or PR. Resolve any uncommitted changes before switching branches.

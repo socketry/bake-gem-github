@@ -26,20 +26,25 @@ def major(refresh: false)
 	Bake::Gem::GitHub::Project.new(context.root).prepare(context, "major", refresh: refresh)
 end
 
-# Resolve and validate a merged PR, emitting a commit output for the publishing job.
-# @parameter number [String] The merged PR number; defaults to `RELEASE_PR`.
+# Resolve and validate a pushed commit, emitting its merged PR and commit for publishing.
+# @parameter number [String | Nil] A merged PR number for older workflows; defaults to `RELEASE_PR`.
+# @parameter commit [String | Nil] The pushed commit SHA; defaults to `RELEASE_COMMIT` and takes precedence over `number`.
 # @returns [Hash | Nil] Release metadata, or nil for an ordinary PR.
-def resolve(number: ENV.fetch("RELEASE_PR"))
-	result = Bake::Gem::GitHub::Project.new(context.root).inspect_release(number)
+def resolve(number: ENV["RELEASE_PR"], commit: ENV["RELEASE_COMMIT"])
+	project = Bake::Gem::GitHub::Project.new(context.root)
+	result = commit ? project.inspect_commit(commit) : project.inspect_release(number)
 	
 	if path = ENV["GITHUB_OUTPUT"]
 		File.open(path, "a") do |file|
 			file.puts "release=#{!result.nil?}"
-			file.puts "commit=#{result.fetch(:commit)}" if result
+			if result
+				file.puts "commit=#{result.fetch(:commit)}"
+				file.puts "pull_request=#{result.fetch(:pull_request)}"
+			end
 		end
 	end
 	
-	return result
+	result
 end
 
 # Build or restore the exact artifact for a merged release PR.

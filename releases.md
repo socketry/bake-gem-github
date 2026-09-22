@@ -1,5 +1,10 @@
 # Releases
 
+## Unreleased
+
+  - Publish validated release PRs from pushes to the default branch, retaining the exact merged commit and environment approval without requiring `pull_request_target`.
+  - Queue publishing jobs without replacing pending releases when later changes land.
+
 ## v0.3.0
 
   - Configure publishing environment reviewers through release setup while preserving existing environment protections.
