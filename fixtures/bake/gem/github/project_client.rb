@@ -32,7 +32,9 @@ module Bake
 						@writes << File.read(arguments[arguments.index("--body-file") + 1])
 						["https://github.com/socketry/example/pull/42\n"]
 					else
-						[JSON.generate(@responses.fetch(arguments.fetch(2)))]
+						response = @responses.fetch(arguments.fetch(2))
+						response = response.call if response.respond_to?(:call)
+						[JSON.generate(response)]
 					end
 				end
 				

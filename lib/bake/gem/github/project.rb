@@ -157,6 +157,7 @@ module Bake
 				
 				# Return a read-only comparison of managed settings and current repository settings.
 				# @returns [Hash] Desired rules, existing rules, environments, optional environment changes, and expected Trusted Publisher settings. This does not verify RubyGems ownership or publisher configuration.
+				# @raises [RuntimeError] If a reviewer team is secret or belongs to another organization.
 				def doctor
 					{
 						desired_rules: Setup.rules(@config),
@@ -174,8 +175,9 @@ module Bake
 				
 				# Apply the named rulesets and configured reviewers for an existing environment. Invoke after reviewing doctor output.
 				# Preserves the environment's wait timer, self-review prevention, administrator bypass, and branch restrictions.
+				# Reads back updated environment settings to verify GitHub retained them.
 				# @returns [Hash] The desired ruleset payloads after successful application.
-				# @raises [RuntimeError] If more than one existing ruleset has a managed name.
+				# @raises [RuntimeError] If a reviewer team is unsuitable, managed rulesets are ambiguous, or environment verification fails. Earlier updates may already have completed.
 				# @raises [Bake::Gem::CommandExecutionError] If an API operation fails; earlier updates may already have completed.
 				def apply
 					changes = environment_changes
@@ -193,6 +195,9 @@ module Bake
 					
 					if changes && changes.fetch(:current) != changes.fetch(:desired)
 						write_api("repos/#{@repository}/#{environment_path}", changes.fetch(:desired), method: "PUT")
+						unless environment_settings == changes.fetch(:desired)
+							raise "GitHub did not retain the requested settings for environment #{changes.fetch(:name)}. Check its reviewers and protection rules in GitHub, then rerun gem:github:setup:plan."
+						end
 					end
 					
 					return rules
@@ -209,19 +214,26 @@ module Bake
 					return nil unless @config.key?("reviewers")
 					Setup.validate_reviewers(@config["reviewers"])
 					
+					current = environment_settings
+					reviewers = @config.fetch("reviewers").map{|name| resolve_reviewer(name)}.uniq.sort_by{|reviewer| reviewer.values_at(:type, :id)}
+					
+					return {name: @config.fetch("environment"), current: current, desired: current.merge(reviewers: reviewers)}
+				end
+				
+				# Read the environment settings, comparing reviewer identities independently of their order.
+				def environment_settings
 					environment = api(environment_path)
 					protections = environment.fetch("protection_rules").to_h{|rule| [rule.fetch("type"), rule]}
 					reviews = protections.fetch("required_reviewers", {})
-					current = {
+					reviewers = reviews.fetch("reviewers", []).map{|entry| {type: entry.fetch("type"), id: entry.fetch("reviewer").fetch("id")}}
+					
+					return {
 						wait_timer: protections.fetch("wait_timer", {}).fetch("wait_timer", 0),
 						prevent_self_review: reviews.fetch("prevent_self_review", false),
 						can_admins_bypass: environment.fetch("can_admins_bypass"),
 						deployment_branch_policy: environment.fetch("deployment_branch_policy"),
-						reviewers: reviews.fetch("reviewers", []).map{|entry| {type: entry.fetch("type"), id: entry.fetch("reviewer").fetch("id")}},
+						reviewers: reviewers.uniq.sort_by{|reviewer| reviewer.values_at(:type, :id)},
 					}
-					reviewers = @config.fetch("reviewers").map{|name| resolve_reviewer(name)}
-					
-					return {name: @config.fetch("environment"), current: current, desired: current.merge(reviewers: reviewers)}
 				end
 				
 				def resolve_reviewer(name)
@@ -235,6 +247,9 @@ module Bake
 						type = "User"
 					end
 					response = JSON.parse(readlines("gh", "api", path, chdir: @root).join)
+					if type == "Team" && response.fetch("privacy") == "secret"
+						raise "Reviewer team #{name} is Secret. Change its visibility to Visible in GitHub team settings before running setup."
+					end
 					
 					return {type: type, id: response.fetch("id")}
 				end
