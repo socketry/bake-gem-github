@@ -24,6 +24,10 @@ Please see the [project documentation](https://socketry.github.io/bake-gem-githu
 
 Please see the [project releases](https://socketry.github.io/bake-gem-github/releases/index) for all releases.
 
+### v0.4.0
+
+  - Reject Secret environment reviewer teams before applying release settings, and verify that GitHub retained the requested reviewers and existing protections after updating the environment.
+
 ### v0.3.1
 
   - Publish validated release PRs from pushes to the default branch, retaining the exact merged commit and environment approval without requiring `pull_request_target`.

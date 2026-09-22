@@ -9,7 +9,7 @@ module Bake
 	module Gem
 		# GitHub pull request and release orchestration for bake-gem.
 		module GitHub
-			VERSION = "0.3.1"
+			VERSION = "0.4.0"
 		end
 	end
 end
