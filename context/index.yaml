@@ -2,7 +2,10 @@
 # Do not edit then files in this directory directly, instead edit the guides and then run `bake utopia:project:agent:context:update`.
 ---
 description: Reviewable GitHub releases for Ruby gems.
-metadata: {}
+metadata:
+  bug_tracker_uri: https://github.com/socketry/bake-gem-github/issues
+  changelog_uri: https://github.com/socketry/bake-gem-github/blob/main/releases.md
+  source_code_uri: https://github.com/socketry/bake-gem-github.git
 files:
 - path: getting-started.md
   title: GitHub Releases

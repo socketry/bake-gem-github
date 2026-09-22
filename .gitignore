@@ -1,7 +1,10 @@
-/.bundle/
-/.context/
-/.covered.db
-/coverage/
+/agents.md
+/.agents/
+/.bundle
+/pkg
 /gems.locked
-/pkg/
+/.covered.db
+/external
+
+# Installed by ruby/setup-ruby with bundler-cache enabled:
 /vendor/bundle/
