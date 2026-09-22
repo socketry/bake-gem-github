@@ -10,14 +10,14 @@ end
 
 # Apply the four managed rulesets using the current gh administrator credentials.
 def apply
-	require_relative "../../../lib/bake/gem/github/project"
+	require "bake/gem/github/project"
 	
 	return Bake::Gem::GitHub::Project.new(context.root).apply
 end
 
 # Update generated files in the working tree using config/release.yaml and the installed templates.
 def update
-	require_relative "../../../lib/bake/gem/github/setup"
+	require "bake/gem/github/setup"
 	
 	return Bake::Gem::GitHub::Setup.new(context.root).update
 end

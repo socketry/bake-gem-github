@@ -9,6 +9,28 @@ require "bake/gem/github/project_client"
 describe "GitHub release tasks" do
 	include Bake::Gem::GitHub::RepositoryContext
 	
+	it "discovers preparation tasks without loading the publisher" do
+		publisher = isolated_ruby(<<~'RUBY', chdir: repository, requires: ["bundler/setup", "bake/context"])
+			context = Bake::Context.load
+			%w[patch minor major].each do |bump|
+				context.lookup("gem:github:release:#{bump}") or raise "Missing task"
+			end
+			defined?(Bake::Gem::GitHub::Publisher)
+		RUBY
+		
+		expect(publisher).to be_nil
+	end
+	
+	%w[build publish].each do |task|
+		it "loads the publisher when invoking its task", unique: task do
+			expect do
+				isolated_ruby(<<~'RUBY', chdir: repository, env: {"TASK" => task, "GITHUB_REPOSITORY" => nil}, requires: ["bundler/setup", "bake/context"])
+					Bake::Context.load.call("gem:github:release:#{ENV.fetch('TASK')}", "number=42")
+				RUBY
+			end.to raise_exception(RuntimeError, message: be =~ /configured GitHub repository/)
+		end
+	end
+	
 	with "gem:github:setup" do
 		it "discovers the canonical repository and default branch through gh" do
 			bin = File.join(root, "bin")

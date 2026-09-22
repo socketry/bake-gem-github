@@ -3,7 +3,7 @@
 # Released under the MIT License.
 # Copyright, 2026, by Samuel Williams.
 
-require_relative "../../../lib/bake/gem/github/publisher"
+require "bake/gem/github/project"
 
 # Prepare a patch release and open its PR.
 # @parameter refresh [Boolean] Preserve and regenerate an existing release branch.
@@ -39,12 +39,16 @@ end
 
 # Build or restore the exact artifact for a merged release PR.
 def build(number: ENV.fetch("RELEASE_PR"))
-	Bake::Gem::GitHub::Publisher.new(context.root).build(number)
+	require "bake/gem/github/publisher"
+	
+	return Bake::Gem::GitHub::Publisher.new(context.root).build(number)
 end
 
 # Verify, upload and finalize a merged release using its retained artifact.
 def publish(number: ENV.fetch("RELEASE_PR"))
-	Bake::Gem::GitHub::Publisher.new(context.root).publish(number)
+	require "bake/gem/github/publisher"
+	
+	return Bake::Gem::GitHub::Publisher.new(context.root).publish(number)
 end
 
 # Rerun the original publishing workflow, preserving event identity and artifact bytes.

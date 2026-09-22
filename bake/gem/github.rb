@@ -11,7 +11,7 @@
 # @parameter signing [Boolean] Require legacy certificate signing.
 # @parameter ruby [String] Ruby version for release workflows.
 def setup(checks:, repository: nil, branch: nil, approvals: 2, signing: nil, ruby: "3.4")
-	require_relative "../../lib/bake/gem/github/setup"
+	require "bake/gem/github/setup"
 	require "bake/gem/shell"
 	
 	helper = Object.new.extend(Bake::Gem::Shell)
@@ -35,7 +35,7 @@ end
 
 # Show the desired rules, existing rules, environments, and RubyGems bootstrap values.
 def doctor
-	require_relative "../../lib/bake/gem/github/project"
+	require "bake/gem/github/project"
 	
 	return Bake::Gem::GitHub::Project.new(context.root).doctor
 end
