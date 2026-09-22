@@ -89,7 +89,7 @@ module Bake
 									require_last_push_approval: true,
 									required_review_thread_resolution: true,
 									require_code_owner_review: false,
-									allowed_merge_methods: ["merge", "squash"],
+									allowed_merge_methods: ["merge", "squash", "rebase"],
 								},
 							}],
 						),

@@ -26,6 +26,14 @@ def major(refresh: false)
 	Bake::Gem::GitHub::Project.new(context.root).prepare(context, "major", refresh: refresh)
 end
 
+# Regenerate release content and require one release commit; ordinary PRs pass without a commit limit.
+# @parameter base [String] The current target commit.
+# @parameter candidate [String] The proposed PR head.
+# @returns [Hash | Nil] Release metadata, or nil for an ordinary PR.
+def validate(base:, candidate: "HEAD")
+	Bake::Gem::GitHub::Project.new(context.root).validate(base: base, candidate: candidate)
+end
+
 # Resolve and validate a pushed commit, emitting its merged PR and commit for publishing.
 # @parameter number [String | Nil] A merged PR number for older workflows; defaults to `RELEASE_PR`.
 # @parameter commit [String | Nil] The pushed commit SHA; defaults to `RELEASE_COMMIT` and takes precedence over `number`.

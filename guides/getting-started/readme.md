@@ -6,7 +6,7 @@ This guide explains how to configure reviewed Ruby gem releases and prepare the 
 
 Maintainers prepare a release PR containing the version bump and generated release notes. CI regenerates those changes from the current base to verify the content. Native GitHub rules control approval and merging. A push to the default branch starts release inspection; GitHub Actions builds the exact pushed commit only when it is a validated, merged release PR, then publishes its verified artifact to RubyGems.
 
-`bake-gem` provides version updates, release hooks, and clean builds. `bake-gem-github` adds PR preparation, GitHub policy, and remote publishing. The supported process uses one gemspec, stable three-part versions, merge or squash merging, and RubyGems.org.
+`bake-gem` provides version updates, release hooks, and clean builds. `bake-gem-github` adds PR preparation, GitHub policy, and remote publishing. The supported process uses one gemspec, stable three-part versions, single-commit release PRs, and RubyGems.org. Release PRs can be squash merged, rebase merged, or merged with a merge commit.
 
 ## Installation
 
@@ -90,7 +90,9 @@ bundle exec bake gem:github:setup:plan
 bundle exec bake gem:github:setup:apply
 ```
 
-Apply updates the four managed rulesets and, when configured, the existing environment's reviewer list. It preserves unrelated rulesets. Other repository and organization protections still apply. Keep check names in `config/release.yaml` synchronized with the workflows, and apply updated rules after renamed jobs are available. Keep rebase merging and merge queues disabled for this process.
+Apply updates the four managed rulesets and, when configured, the existing environment's reviewer list. It preserves unrelated rulesets. Other repository and organization protections still apply. Keep check names in `config/release.yaml` synchronized with the workflows, and apply updated rules after renamed jobs are available.
+
+The generated rules allow merge, squash, and rebase methods; repository settings determine which are available. For linear history, enable squash and/or rebase merging and disable merge commits in repository settings. Release validation requires exactly one commit when the version changes; ordinary PRs have no commit limit. Keep merge queues disabled for this process.
 
 ## Prepare the first release PR
 
@@ -115,13 +117,15 @@ git diff
 
 This updates managed files in the working tree and returns their changed paths. Review the diff and selectively retain repository customizations before committing. The task does not stage, commit, or change remote settings. Repeated updates produce no further changes unless customizations differ from the templates. Apply changed rulesets after the corresponding workflows are running.
 
+To enable rebase merging on an existing installation, regenerate and merge `release-validate.yaml` so it runs `gem:github:release:validate`, which requires single-commit release PRs. Then review `gem:github:setup:plan` and run `gem:github:setup:apply` to allow rebase merging in the managed rules. Enable rebase merging in repository settings as well. Upgrading the gem alone does not update workflows or live rules.
+
 Regenerate existing workflows to adopt publishing on `push` instead of `pull_request_target`. The workflow filename and `rubygems` environment remain the same, so the RubyGems Trusted Publisher configuration does not change. No exception to GitHub's `pull_request_target` execution policy is needed. The resolve task continues to accept PR numbers from older workflows while you migrate.
 
 The release workflows follow `bake modernize` action versions and use moving major tags where available. The RubyGems credentials action uses its [documented `@main` reference](https://github.com/rubygems/configure-rubygems-credentials#trusted-publisher-recommended). Repositories that require fixed revisions can customize these references.
 
 ## Current scope
 
-The process has published `bake-gem-github` through GitHub Actions. Each adopting repository still needs its own reviewed setup and successful release. Public single-gem repositories, ordinary stable versions, merge/squash, GitHub-hosted Linux runners, and RubyGems.org are the supported starting point.
+The process has published `bake-gem-github` through GitHub Actions. Each adopting repository still needs its own reviewed setup and successful release. Public single-gem repositories, ordinary stable versions, single-commit release PRs using squash/rebase/merge, GitHub-hosted Linux runners, and RubyGems.org are the supported starting point.
 
 Native build matrices, reusable publisher workflows, merge queues, automated RubyGems ownership/MFA setup, cross-run artifact recovery, and organization-wide migration are outside the current setup tasks.
 

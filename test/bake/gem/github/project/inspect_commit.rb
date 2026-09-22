@@ -129,18 +129,36 @@ describe Bake::Gem::GitHub::Project do
 			end
 		end
 		
-		with "squash merges" do
-			before do
-				isolated_project('Bake::Gem::GitHub::ProjectClient.new(Dir.pwd).prepare(Bake::Context.load(Dir.pwd), "patch")')
+		%w[squash rebase merge].each do |method|
+			it "resolves the actual release commit after merging", unique: method do
+				isolated_project('Bake::Context.load.call("gem:release:branch:patch")')
+				original = git("rev-parse", "HEAD")
 				git("checkout", "--quiet", "main")
-				git("merge", "--quiet", "--squash", "releases/v1.0.1")
-				git("commit", "--quiet", "-m", "Squash release")
-				git("push", "--quiet", "origin", "main")
+				
+				case method
+				when "squash"
+					git("merge", "--quiet", "--squash", "releases/v1.0.1")
+					git("commit", "--quiet", "-m", "Squash release")
+				when "rebase"
+					git("commit", "--quiet", "--allow-empty", "-m", "Advance main")
+					git("checkout", "--quiet", "releases/v1.0.1")
+					git("rebase", "--quiet", "main")
+					git("checkout", "--quiet", "main")
+					git("merge", "--quiet", "--ff-only", "releases/v1.0.1")
+				when "merge"
+					git("merge", "--quiet", "--no-ff", "releases/v1.0.1", "-m", "Merge release")
+				end
+				
+				base = git("rev-parse", "HEAD^1")
+				pull["head"] = {"sha" => original}
 				configure_pull
-			end
-			
-			it "resolves the squash commit to its release PR" do
-				expect(project.inspect_commit(commit)).to have_keys(version: be == "1.0.1", commit: be == commit, pull_request: be == 42)
+				git("commit", "--quiet", "--allow-empty", "-m", "Later development")
+				git("push", "--quiet", "origin", "main")
+				
+				expect(commit).not.to be == original
+				expect(project.inspect_commit(commit)).to have_keys(
+					version: be == "1.0.1", commit: be == commit, base: be == base, pull_request: be == 42,
+				)
 			end
 		end
 	end

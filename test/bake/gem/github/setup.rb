@@ -26,7 +26,7 @@ describe Bake::Gem::GitHub::Setup do
 		expect(config.fetch("signing")).to be == false
 		expect(config.fetch("approvals")).to be == 2
 		expect(config.fetch("reviewers")).to be == ["socketry/managers", "ioquatix"]
-		%w[resolve build publish resume patch minor major].each do |name|
+		%w[validate resolve build publish resume patch minor major].each do |name|
 			expect(context.lookup("gem:github:release:#{name}")).not.to be_nil
 		end
 	end
@@ -47,6 +47,9 @@ describe Bake::Gem::GitHub::Setup do
 		
 		expect(checks.dig("rules", 0, "parameters", "strict_required_status_checks_policy")).to be == true
 		expect(checks.dig("bypass_actors", 0, "bypass_mode")).to be == "pull_request"
+		reviews = JSON.parse(File.read(File.join(root, ".github/release-rules/reviews.json")))
+		
+		expect(reviews.dig("rules", 0, "parameters", "allowed_merge_methods")).to be == ["merge", "squash", "rebase"]
 	end
 	
 	[nil, [], "socketry/managers", [nil], [""], ["@socketry/managers"], ["socketry/managers/other"], ["invalid?name"], Array.new(7, "ioquatix")].each do |reviewers|
@@ -73,6 +76,8 @@ describe Bake::Gem::GitHub::Setup do
 		expect(validation).not.to be(:include?, "secrets.")
 		expect(validation).not.to be(:include?, "id-token")
 		expect(validation).not.to be(:include?, "pull_request_target")
+		expect(validation).to be(:include?, 'bundle exec bake gem:github:release:validate "base=$RELEASE_BASE"')
+		expect(validation).to be(:include?, "bundle exec bake gem:build signing_key=false")
 		publish = File.read(File.join(root, ".github/workflows/release-publish.yaml"))
 		
 		expect(publish).not.to be(:include?, "pull_request_target")

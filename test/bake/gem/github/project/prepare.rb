@@ -56,6 +56,15 @@ describe Bake::Gem::GitHub::Project do
 			expect(git("rev-parse", "releases/v1.0.1", chdir: File.join(root, "remote"))).to be == original
 		end
 		
+		it "rejects multiple release commits before pushing or opening a PR" do
+			isolated_project('Bake::Context.load.call("gem:release:branch:patch")')
+			git("commit", "--quiet", "--allow-empty", "-m", "Extra release commit")
+			git("checkout", "--quiet", "main")
+			
+			expect{prepare}.to raise_exception(RuntimeError, message: be =~ /exactly one commit/)
+			expect(git("ls-remote", "--heads", "origin", "releases/v1.0.1")).to be == ""
+		end
+		
 		it "rejects stale generated content without changing the release branch" do
 			prepare
 			original = git("rev-parse", "HEAD")
