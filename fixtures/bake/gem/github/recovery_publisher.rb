@@ -4,27 +4,11 @@
 # Copyright, 2026, by Samuel Williams.
 
 require "bake/gem/github/publisher"
+require "bake/gem/github/recovery_registry"
 
 module Bake
 	module Gem
 		module GitHub
-			# Use the real propagation verifier against simulated published content.
-			class RecoveryRegistry < Registry
-				def initialize(publisher)
-					@publisher = publisher
-				end
-				
-				def digest(name, version)
-					@publisher.remote_digest
-				end
-				
-				private
-				
-				def get(url)
-					JSON.generate([{bundle: {mediaType: "test"}}])
-				end
-			end
-			
 			# A simulated registry and GitHub finalizer. Core content validation has its own
 			# real-repository integration tests; this fixture exercises interruption/retry.
 			class RecoveryPublisher < Publisher
@@ -53,6 +37,7 @@ module Bake
 				
 				def system(*arguments, **options)
 					@commands << arguments
+					
 					raise "Attestation verification failed" if @fail_attestation && arguments[0, 3] == ["gem", "exec", "sigstore-cli:0.2.3"]
 					if @fail_receipt_verification && arguments[0, 3] == ["gh", "attestation", "verify"] && arguments[3].end_with?("/release.json")
 						raise "Receipt attestation verification failed"
@@ -76,8 +61,16 @@ module Bake
 					when ["gh", "release", "edit"]
 						raise "GitHub unavailable after upload" if @fail_release
 						@releases.first["draft"] = false
+					when ["gem", "exec", "sigstore-cli:0.2.3"], ["gh", "attestation", "verify"]
+						# The fixture records signature verification without calling external tools.
+					else
+						unless arguments[0, 2] == ["gem", "push"] || arguments[0, 2] == ["git", "tag"] ||
+							(arguments.first == "git" && arguments.include?("push"))
+							raise "Unexpected command: #{arguments.inspect}"
+						end
 					end
-					true
+					
+					return true
 				end
 				
 				def readlines(*arguments, **options)
@@ -93,15 +86,24 @@ module Bake
 							@releases << release
 							return [JSON.generate(release)]
 						end
+						raise "Unexpected GitHub request: #{arguments.inspect}" unless arguments[2, 2] == ["--paginate", "--slurp"]
+						
 						releases = @releases.each_with_index.map{|release, index| release.merge("id" => index + 1)}
 						return [JSON.generate([@stale_release_list ? [] : releases])]
 					end
-					[]
+					
+					if arguments[0, 3] == ["git", "tag", "--list"] || arguments[0, 3] == ["git", "ls-remote", "--tags"]
+						return []
+					end
+					
+					raise "Unexpected command: #{arguments.inspect}"
 				end
 				
 				def api(path)
 					return @releases.fetch(Integer(path.delete_prefix("releases/")) - 1) if path.start_with?("releases/")
-					{"artifacts" => @artifacts}
+					return {"artifacts" => @artifacts} if path.match?(%r{\Aactions/runs/\d+/artifacts\?per_page=100\z})
+					
+					raise "Unexpected API path: #{path}"
 				end
 				
 				private
