@@ -36,14 +36,17 @@ describe Bake::Gem::GitHub::Publisher do
 		File.write(File.join(root, "pkg", "example-1.0.1.gem"), "Original")
 		receipt = {file: "example-1.0.1.gem", sha256: Digest::SHA256.hexdigest("Original")}
 		File.write(File.join(root, "pkg", "release.json"), JSON.generate(receipt))
+		
 		expect(publisher.load_receipt).to be == receipt
 		File.write(File.join(root, "pkg", "example-1.0.1.gem"), "Changed")
+		
 		expect{publisher.load_receipt}.to raise_exception(RuntimeError, message: be =~ /digest mismatch/)
 	end
 	
 	it "rejects an artifact path outside pkg" do
 		FileUtils.mkdir_p(File.join(root, "pkg"))
 		File.write(File.join(root, "pkg", "release.json"), JSON.generate(file: "../example.gem"))
+		
 		expect{publisher.load_receipt}.to raise_exception(RuntimeError, message: be =~ /filename/)
 	end
 	
@@ -51,6 +54,7 @@ describe Bake::Gem::GitHub::Publisher do
 		commit
 		git("tag", "v1.0.1")
 		git("commit", "--allow-empty", "-m", "Later source")
+		
 		expect{publisher.guard_tag("v1.0.1", git("rev-parse", "HEAD"))}.to raise_exception(RuntimeError, message: be =~ /another commit/)
 		expect(git("rev-parse", "v1.0.1")).to be == commit
 	end
@@ -99,6 +103,7 @@ describe Bake::Gem::GitHub::Publisher do
 			package.extract_files("extracted")
 			{content: File.read("extracted/example.rb"), signer: OpenSSL::X509::Certificate.new(package.spec.cert_chain.last).to_der}
 		RUBY
+		
 		expect(result[:content]).to be == "ORIGINAL"
 		expect(result[:signer]).to be == certificate.to_der
 	end

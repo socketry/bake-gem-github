@@ -11,6 +11,9 @@ module Bake
 			# Stores the original release files together so a single completed upload can recover them.
 			module Backup
 				# Write the release files to a tar archive.
+				# @parameter path [String] The destination archive path.
+				# @parameter files [Array(String)] Original release files, stored under their basenames.
+				# @returns [Nil] After writing and closing the archive.
 				def self.write(path, files)
 					File.open(path, "wb") do |output|
 						::Gem::Package::TarWriter.new(output) do |archive|
@@ -22,8 +25,13 @@ module Bake
 				end
 				
 				# Read only the expected regular files; reject missing, duplicate, or unexpected entries before extraction.
+				# @parameter path [String] The archive to inspect without extracting filesystem paths.
+				# @parameter names [Array(String)] Exactly the permitted basenames for the gem, receipt, and two attestation files.
+				# @returns [Hash(String, String)] Binary file contents keyed by basename.
+				# @raises [RuntimeError] If entries are missing, duplicated, unexpected, or not regular files.
 				def self.read(path, names)
 					files = {}
+					
 					File.open(path, "rb") do |input|
 						::Gem::Package::TarReader.new(input) do |archive|
 							archive.each do |entry|
@@ -34,7 +42,8 @@ module Bake
 						end
 					end
 					raise "Release backup is incomplete." unless files.keys.sort == names.sort
-					files
+					
+					return files
 				end
 			end
 		end

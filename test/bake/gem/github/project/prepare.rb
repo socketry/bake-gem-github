@@ -42,6 +42,7 @@ describe Bake::Gem::GitHub::Project do
 			end.to raise_exception(RuntimeError, message: be =~ /PR creation interrupted/)
 			original = git("rev-parse", "HEAD")
 			git("checkout", "--quiet", "main")
+			
 			expect(prepare).to be == "https://github.com/socketry/example/pull/42"
 			expect(git("rev-parse", "releases/v1.0.1", chdir: File.join(root, "remote"))).to be == original
 		end
@@ -51,6 +52,7 @@ describe Bake::Gem::GitHub::Project do
 			original = git("rev-parse", "HEAD")
 			git("checkout", "--quiet", "main")
 			prepare
+			
 			expect(git("rev-parse", "releases/v1.0.1", chdir: File.join(root, "remote"))).to be == original
 		end
 		
@@ -58,6 +60,7 @@ describe Bake::Gem::GitHub::Project do
 			prepare
 			original = git("rev-parse", "HEAD")
 			advance_main
+			
 			expect{prepare(pulls: [pull])}.to raise_exception(RuntimeError, message: be =~ /Release content is stale/)
 			expect(git("rev-parse", "releases/v1.0.1", chdir: File.join(root, "remote"))).to be == original
 		end
@@ -70,8 +73,10 @@ describe Bake::Gem::GitHub::Project do
 			git("push", "--quiet", "origin", "releases/v1.0.1")
 			original = git("rev-parse", "HEAD")
 			advance_main
+			
 			expect(prepare(refresh: true, pulls: [pull])).to be == "existing"
 			remote = File.join(root, "remote")
+			
 			expect(git("rev-parse", "release-backups/v1.0.1/#{original}", chdir: remote)).to be == original
 			expect(git("show", "release-backups/v1.0.1/#{original}:manual.md", chdir: remote)).to be == "Keep this for review."
 			expect(git("show", "releases/v1.0.1:releases.md", chdir: remote)).to be == "## v1.0.1\n\nAn additional change."
@@ -83,6 +88,7 @@ describe Bake::Gem::GitHub::Project do
 			prepare
 			original = git("rev-parse", "HEAD")
 			advance_main
+			
 			expect do
 				isolated_project(<<~'RUBY')
 					require "sus/mock"
@@ -113,6 +119,7 @@ describe Bake::Gem::GitHub::Project do
 			isolated_project('Bake::Context.load(Dir.pwd).call("gem:release:branch:minor")')
 			git("branch", "--move", "releases/v1.0.1")
 			git("checkout", "--quiet", "main")
+			
 			expect{prepare}.to raise_exception(RuntimeError, message: be =~ /requested version 1.0.1/)
 		end
 		

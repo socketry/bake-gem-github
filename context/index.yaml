@@ -3,11 +3,24 @@
 ---
 description: Reviewable GitHub releases for Ruby gems.
 metadata:
+  documentation_uri: https://socketry.github.io/bake-gem-github/
   bug_tracker_uri: https://github.com/socketry/bake-gem-github/issues
   changelog_uri: https://github.com/socketry/bake-gem-github/blob/main/releases.md
   source_code_uri: https://github.com/socketry/bake-gem-github.git
 files:
 - path: getting-started.md
-  title: GitHub Releases
-  description: This guide explains how to set up reviewed Ruby gem releases with `bake-gem-github`,
-    native GitHub rules, RubyGems Trusted Publishing, and retained release artifacts.
+  title: Getting Started
+  description: This guide explains how to configure reviewed Ruby gem releases and
+    prepare the first release PR with `bake-gem-github`.
+- path: preparing-releases.md
+  title: Preparing Releases
+  description: This guide explains how to request a release PR, resume interrupted
+    preparation, and refresh generated content when the default branch changes.
+- path: verifying-releases.md
+  title: Verifying Releases
+  description: This guide explains how publishing binds a gem to its reviewed source
+    and how to verify the downloaded artifact and attestations.
+- path: recovering-releases.md
+  title: Recovering Releases
+  description: This guide explains how to resume an interrupted publishing workflow
+    using the original gem and its verification evidence.

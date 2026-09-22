@@ -15,12 +15,14 @@ describe Bake::Gem::GitHub::Backup do
 		files = {"example.gem" => "\x00\xffpackage".b, "release.json" => "{}"}
 		files.each{|name, content| File.binwrite(File.join(root, name), content)}
 		subject.write(path, files.keys.map{|name| File.join(root, name)})
+		
 		expect(subject.read(path, files.keys)).to be == files
 	end
 	
 	it "rejects an incomplete backup" do
 		File.write(File.join(root, "example.gem"), "package")
 		subject.write(path, [File.join(root, "example.gem")])
+		
 		expect{subject.read(path, ["example.gem", "release.json"])}.to raise_exception(RuntimeError, message: be =~ /incomplete/)
 	end
 	
@@ -31,6 +33,7 @@ describe Bake::Gem::GitHub::Backup do
 					entries.each{|name| archive.add_file(name, 0644){|entry| entry.write("bytes")}}
 				end
 			end
+			
 			expect{subject.read(path, ["example.gem"])}.to raise_exception(RuntimeError, message: be =~ /Unexpected release backup entry/)
 		end
 	end
@@ -39,6 +42,7 @@ describe Bake::Gem::GitHub::Backup do
 		File.open(path, "wb") do |file|
 			Gem::Package::TarWriter.new(file){|archive| archive.add_symlink("example.gem", "../outside", 0644)}
 		end
+		
 		expect{subject.read(path, ["example.gem"])}.to raise_exception(RuntimeError, message: be =~ /Unexpected release backup entry/)
 	end
 end

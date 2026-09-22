@@ -10,6 +10,7 @@ Gem::Specification.new do |spec|
 	spec.license = "MIT"
 	spec.homepage = "https://github.com/socketry/bake-gem-github"
 	spec.metadata = {
+		"documentation_uri" => "https://socketry.github.io/bake-gem-github/",
 		"bug_tracker_uri" => "https://github.com/socketry/bake-gem-github/issues",
 		"changelog_uri" => "https://github.com/socketry/bake-gem-github/blob/main/releases.md",
 		"source_code_uri" => "https://github.com/socketry/bake-gem-github.git",
