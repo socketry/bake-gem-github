@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.4.0
 
   - Reject Secret environment reviewer teams before applying release settings, and verify that GitHub retained the requested reviewers and existing protections after updating the environment.
 
