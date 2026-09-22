@@ -23,11 +23,12 @@ module Bake
 				# @parameter branch [String] The default branch receiving release PRs.
 				# @parameter checks [Array(String)] Required CI job names; release validation is added automatically.
 				# @parameter approvals [Integer] Required approvals, between one and six.
+				# @parameter reviewers [Array(String) | Nil] Publishing environment reviewers, as user logins or organization/team names. Nil leaves environment settings unmanaged.
 				# @parameter signing [Boolean] Whether publishing requires the certificate and matching private key.
 				# @parameter ruby [String] The Ruby version used by release workflows.
 				# @returns [Array(String)] Generated paths relative to the repository root.
 				# @raises [RuntimeError] If configuration is invalid or an existing generated file differs.
-				def generate(repository:, branch: "main", checks:, approvals: 2, signing: File.file?(File.join(@root, "release.cert")), ruby: "3.4")
+				def generate(repository:, branch: "main", checks:, approvals: 2, reviewers: nil, signing: File.file?(File.join(@root, "release.cert")), ruby: "3.4")
 					raise "Expected owner/repository." unless repository.match?(/\A[\w.-]+\/[\w.-]+\z/)
 					raise "Unsupported branch name." unless branch.match?(/\A[\w.\/-]+\z/)
 					raise "Select the required CI check names." if checks.empty?
@@ -43,6 +44,7 @@ module Bake
 						"ruby" => ruby,
 						"environment" => "rubygems",
 					}
+					config["reviewers"] = reviewers unless reviewers.nil?
 					
 					files = render(config)
 					conflicts = files.keys.select do |name|
@@ -119,6 +121,15 @@ module Bake
 					}
 				end
 				
+				# Validate an explicit list of publishing environment reviewers.
+				# @parameter reviewers [Array(String)] One to six user logins or organization/team names.
+				# @raises [ArgumentError] If the list is empty, too long, or contains invalid names.
+				def self.validate_reviewers(reviewers)
+					unless reviewers.is_a?(Array) && (1..6).include?(reviewers.size) && reviewers.all?{|name| name.is_a?(String) && name.match?(/\A[\w-]+(?:\/[\w-]+)?\z/)}
+						raise ArgumentError, "Specify one to six environment reviewers as user logins or organization/team names."
+					end
+				end
+				
 				private
 				
 				def write(files)
@@ -134,6 +145,7 @@ module Bake
 				end
 				
 				def render(config)
+					self.class.validate_reviewers(config["reviewers"]) if config.key?("reviewers")
 					branch = config.fetch("branch")
 					ruby = config.fetch("ruby")
 					signing = config.fetch("signing")

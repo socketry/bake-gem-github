@@ -54,7 +54,28 @@ Ownership, MFA, and signing bootstrap are manual setup steps. The plan reports e
 
 When `release.cert` exists, setup enables certificate signing. Commit the public certificate and install its matching private key as `GEM_SIGNING_KEY`, either in the `rubygems` environment or as an organization secret available to the repository. The publisher checks certificate validity, key matching, and package signatures. Use `signing=false` during setup to disable certificate signing.
 
-Ensure another maintainer can administer the repository and recover its RubyGems account and signing key. Keep the native PR review policy as the routine approval step; the environment does not need another reviewer gate.
+Ensure another maintainer can administer the repository and recover its RubyGems account and signing key.
+
+## Authorize publishing
+
+PR reviews approve the source changes. To require a release manager to authorize publication after merge, configure required reviewers on the `rubygems` environment. The publishing job waits for this separate approval before running.
+
+Pass `reviewers=your-org/managers` to `gem:github:setup`, or add the reviewers to an existing `config/release.yaml`:
+
+``` yaml
+reviewers:
+  - your-org/managers
+```
+
+Replace `your-org/managers` with your organization and team slug, for example `socketry/managers`. Individual user logins are also supported. Reviewers need at least read access to the repository. Setup resolves their GitHub IDs without changing repository access or team membership.
+
+GitHub accepts one to six users or teams, and **one approval from any listed reviewer or team member is sufficient**. It does not support a minimum environment approval count. The default two PR approvals are independent of this publishing approval.
+
+Create the environment and restrict its deployment branch as described above before running plan or apply with reviewers configured. The plan previews the current and desired environment settings. Apply replaces its reviewer list while preserving its wait timer, self-review prevention, administrator bypass setting, and deployment branch restrictions. Custom deployment protection rules are managed separately and are not modified. Reapplying an identical reviewer list leaves the environment unchanged.
+
+Omitting `reviewers` leaves environment settings unmanaged, including any existing reviewer requirement. An empty list is rejected. To remove an existing requirement, change the environment settings explicitly in GitHub.
+
+The RubyGems Trusted Publisher must explicitly require the `rubygems` environment; leaving that field blank would allow this trusted publisher to authenticate jobs without the environment approval. Keep administrator bypass enabled if administrators should be able to explicitly authorize publication without a reviewer. Environment approvals are available for public repositories on GitHub Free.
 
 ## Enable the policy
 
@@ -65,7 +86,7 @@ bundle exec bake gem:github:setup:plan
 bundle exec bake gem:github:setup:apply
 ```
 
-Apply updates only the four managed rulesets and preserves unrelated rulesets. Other repository and organization protections still apply. Keep check names in `config/release.yaml` synchronized with the workflows, and apply updated rules after renamed jobs are available. Keep rebase merging and merge queues disabled for this process.
+Apply updates the four managed rulesets and, when configured, the existing environment's reviewer list. It preserves unrelated rulesets. Other repository and organization protections still apply. Keep check names in `config/release.yaml` synchronized with the workflows, and apply updated rules after renamed jobs are available. Keep rebase merging and merge queues disabled for this process.
 
 ## Prepare the first release PR
 
@@ -75,7 +96,7 @@ From an up-to-date default branch:
 bundle exec bake gem:github:release:patch
 ```
 
-The task prepares, validates, pushes, and opens the release PR. Review its version and release notes, wait for CI, and merge under the repository's approval policy. The publish workflow builds the merged release, verifies and preserves the artifact, publishes to RubyGems, and finalizes the version tag and GitHub release.
+The task prepares, validates, pushes, and opens the release PR. Review its version and release notes, wait for CI, and merge under the repository's approval policy. If environment reviewers are configured, a release manager then approves the publishing job in GitHub Actions. The publish workflow builds the merged release, verifies and preserves the artifact, publishes to RubyGems, and finalizes the version tag and GitHub release.
 
 See [Preparing Releases](../preparing-releases/index) for remote requests and stale-content refresh, [Verifying Releases](../verifying-releases/index) for artifact checks, and [Recovering Releases](../recovering-releases/index) when a workflow stops partway through.
 

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+  - Configure publishing environment reviewers through release setup while preserving existing environment protections.
   - Stop generating `.github/releasing.md`; release instructions are maintained in the shared guide and agent context.
   - Resume interrupted release preparation and explicitly refresh stale release PRs while preserving their previous commits.
   - Preserve all release files in one archive before individual asset uploads, so reruns can recover interrupted drafts.

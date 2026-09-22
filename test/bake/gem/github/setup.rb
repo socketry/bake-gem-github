@@ -20,11 +20,12 @@ describe Bake::Gem::GitHub::Setup do
 		registry = Bake::Registry::Aggregate.new
 		registry.append_path(::Gem.loaded_specs.fetch("bake-gem-github").full_gem_path)
 		context = Bake::Context.new(registry, root)
-		context.call("gem:github:setup", "repository=socketry/example", "branch=main", "checks=Tests,RuboCop", "signing=false", "approvals=2")
+		context.call("gem:github:setup", "repository=socketry/example", "branch=main", "checks=Tests,RuboCop", "signing=false", "approvals=2", "reviewers=socketry/managers,ioquatix")
 		config = YAML.safe_load_file(File.join(root, "config/release.yaml"))
 		
 		expect(config.fetch("signing")).to be == false
 		expect(config.fetch("approvals")).to be == 2
+		expect(config.fetch("reviewers")).to be == ["socketry/managers", "ioquatix"]
 		%w[resolve build publish resume patch minor major].each do |name|
 			expect(context.lookup("gem:github:release:#{name}")).not.to be_nil
 		end
@@ -34,6 +35,7 @@ describe Bake::Gem::GitHub::Setup do
 		paths = generate
 		
 		expect(generate).to be == paths
+		expect(YAML.safe_load_file(File.join(root, "config/release.yaml"))).not.to have_keys("reviewers")
 		expect(File).not.to be(:exist?, File.join(root, ".github/releasing.md"))
 		expect(paths.grep(/workflows/).size).to be == 3
 		paths.grep(/workflows/).each do |path|
@@ -45,6 +47,23 @@ describe Bake::Gem::GitHub::Setup do
 		
 		expect(checks.dig("rules", 0, "parameters", "strict_required_status_checks_policy")).to be == true
 		expect(checks.dig("bypass_actors", 0, "bypass_mode")).to be == "pull_request"
+	end
+	
+	[nil, [], "socketry/managers", [nil], [""], ["@socketry/managers"], ["socketry/managers/other"], ["invalid?name"], Array.new(7, "ioquatix")].each do |reviewers|
+		it "rejects invalid reviewer configuration before generating files", unique: reviewers.inspect do
+			FileUtils.mkdir_p(File.join(root, "config"))
+			File.write(File.join(root, "config/release.yaml"), YAML.dump("schema" => 1, "reviewers" => reviewers))
+			
+			expect{setup.update}.to raise_exception(ArgumentError, message: be =~ /one to six environment reviewers/)
+			expect(File).not.to be(:exist?, File.join(root, ".github"))
+		end
+	end
+	
+	it "rejects an empty reviewer list when generating setup" do
+		expect do
+			setup.generate(repository: "socketry/example", checks: ["Tests"], reviewers: [])
+		end.to raise_exception(ArgumentError, message: be =~ /one to six environment reviewers/)
+		expect(Dir.children(root)).to be == []
 	end
 	
 	it "keeps unmerged validation read-only and retains artifacts before credentials" do

@@ -22,6 +22,7 @@ describe Bake::Gem::GitHub::Setup do
 			path = File.join(repository, "config/release.yaml")
 			config = YAML.safe_load_file(path)
 			config["approvals"] = 3
+			config["reviewers"] = ["socketry/managers"]
 			config["checks"] << "New check"
 			File.write(path, YAML.dump(config))
 			registry = Bake::Registry::Aggregate.new
