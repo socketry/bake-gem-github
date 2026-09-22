@@ -1,137 +1,101 @@
-# GitHub Releases
+# Getting Started
 
-This guide explains how to set up reviewed Ruby gem releases with `bake-gem-github`, native GitHub rules, RubyGems Trusted Publishing, and retained release artifacts.
+This guide explains how to configure reviewed Ruby gem releases and prepare the first release PR with `bake-gem-github`.
+
+## How releases work
+
+Maintainers prepare a release PR containing the version bump and generated release notes. CI regenerates those changes from the current base to verify the content. Native GitHub rules control approval and merging; after merge, GitHub Actions builds the exact merged commit and publishes its verified artifact to RubyGems.
+
+`bake-gem` provides version updates, release hooks, and clean builds. `bake-gem-github` adds PR preparation, GitHub policy, and remote publishing. The supported process uses one gemspec, stable three-part versions, merge or squash merging, and RubyGems.org.
 
 ## Installation
 
-Add `bake-gem-github` and `agent-context` to your maintenance bundle. This companion requires `bake-gem` 0.15 or later for branch preparation and regeneration validation. Install the maintenance group in CI with `BUNDLE_WITH=maintenance`.
+Add these dependencies to the maintenance group in `gems.rb`:
 
-Use one gemspec, a stable three-part version in `lib/.../version.rb`, and repeatable `after_gem_release_version_increment` hooks. Hooks run from a clean base during validation. Commit dependency locks when practical; changing generation tools or using live network/time inputs can make old release content fail validation.
+``` ruby
+group :maintenance, optional: true do
+	gem "bake-gem-github"
+	gem "agent-context"
+end
+```
 
-## Setup and migration
+Install that group and its guidance:
 
-Run setup in each repository. It discovers the canonical repository and default branch through `gh` and generates reviewable local files. Supply the actual required CI job names, including supported matrix entries:
+``` bash
+bundle config set --local with maintenance
+bundle install
+bundle exec bake agent:context:install
+```
+
+The companion requires `bake-gem` 0.15 or later. Its generated release workflows install maintenance dependencies with `BUNDLE_WITH=maintenance`.
+
+Use a version constant in `lib/.../version.rb` and repeatable `after_gem_release_version_increment` hooks. Validation invokes these hooks from a clean base. Generation must not depend on changing network responses or the current time; review dependency updates that could alter generated content.
+
+## Generate repository configuration
+
+Run setup from the repository root with the actual required CI job names, including supported matrix entries:
 
 ``` bash
 bundle exec bake gem:github:setup checks="3.3 on ubuntu,3.3 on macos,3.4 on ubuntu,3.4 on macos,4.0 on ubuntu,4.0 on macos,check,ruby on ubuntu,ruby on macos,validate"
-bundle exec bake agent:context:install
 bundle exec bake gem:github:setup:plan
 ```
 
-This example uses the job names from the standard `bake modernize` test, RuboCop, and coverage workflows. Select the checks actually produced by your repository; experimental Ruby jobs are not required. When changing workflow job names, update `config/release.yaml` and apply the corresponding rulesets so required checks keep matching the workflows.
+This example follows the standard `bake modernize` test, RuboCop, and coverage job names. Select the jobs produced by your repository. Experimental Ruby jobs are not required. Setup adds `Release validation` automatically.
 
-Setup adds three release workflows, `config/release.yaml`, and native ruleset payloads. Identical reruns do nothing; conflicting existing files stop before any file is written. Setup does not replace other publishers: remove conflicting release workflows during migration.
+Setup discovers the canonical GitHub repository and default branch through `gh`. It generates three release workflows, `config/release.yaml`, and four native ruleset payloads. Identical reruns do nothing; conflicting existing files stop generation before any file is written. Review and commit the files in a setup PR, and remove conflicting publishing workflows.
 
-To adopt template fixes after upgrading the gem, start from a clean working tree, edit `config/release.yaml` as needed, and regenerate:
+The rules require two approvals by default, allow explicit administrator bypass, dismiss stale reviews, require approval of the last push, and require up-to-date CI. They protect default-branch history and release tags against deletion or replacement. These branch rules apply to **all PRs** into the default branch. An ordinary administrator approval counts as one review; bypass is a separate action.
+
+## Configure publishing credentials
+
+Create a `rubygems` GitHub environment restricted to the default branch. On RubyGems, an owner must configure a Trusted Publisher with the values printed by `gem:github:setup:plan`: the owner/repository, workflow filename **`release-publish.yaml`**, and environment **`rubygems`**. See [RubyGems Trusted Publishing](https://guides.rubygems.org/trusted-publishing/) for the account setup.
+
+Ownership, MFA, and signing bootstrap are manual setup steps. The plan reports expected RubyGems values; it does not verify ownership or publisher trust. Trusted Publishing supplies the publishing credential for each run, so a long-lived RubyGems API key is unnecessary.
+
+When `release.cert` exists, setup enables certificate signing. Commit the public certificate and install its matching private key as `GEM_SIGNING_KEY`, either in the `rubygems` environment or as an organization secret available to the repository. The publisher checks certificate validity, key matching, and package signatures. Use `signing=false` during setup to disable certificate signing.
+
+Ensure another maintainer can administer the repository and recover its RubyGems account and signing key. Keep the native PR review policy as the routine approval step; the environment does not need another reviewer gate.
+
+## Enable the policy
+
+Merge the setup PR and confirm every selected CI job, including **Release validation**, runs. Review the plan again, then apply its rules using an administrator's `gh` login:
+
+``` bash
+bundle exec bake gem:github:setup:plan
+bundle exec bake gem:github:setup:apply
+```
+
+Apply updates only the four managed rulesets and preserves unrelated rulesets. Other repository and organization protections still apply. Keep check names in `config/release.yaml` synchronized with the workflows, and apply updated rules after renamed jobs are available. Keep rebase merging and merge queues disabled for this process.
+
+## Prepare the first release PR
+
+From an up-to-date default branch:
+
+``` bash
+bundle exec bake gem:github:release:patch
+```
+
+The task prepares, validates, pushes, and opens the release PR. Review its version and release notes, wait for CI, and merge under the repository's approval policy. The publish workflow builds the merged release, verifies and preserves the artifact, publishes to RubyGems, and finalizes the version tag and GitHub release.
+
+See [Preparing Releases](../preparing-releases/index) for remote requests and stale-content refresh, [Verifying Releases](../verifying-releases/index) for artifact checks, and [Recovering Releases](../recovering-releases/index) when a workflow stops partway through.
+
+## Update generated files
+
+After upgrading the gem, start from a clean working tree and regenerate using your existing configuration:
 
 ``` bash
 bundle exec bake gem:github:setup:update
 git diff
 ```
 
-The task updates the managed workflows, policy payloads, and configuration formatting directly in the working tree and returns the changed paths. It does not stage, commit, or change remote settings. An agent or maintainer can review the diff and selectively keep changes, restoring repository-specific customizations from Git where needed. Commit or stash existing edits first: generated files are replaced by the current templates. Repeating an update produces no further changes; intentionally retained customizations will appear in later update diffs. Apply remote rulesets after the corresponding workflows are running.
+This updates managed files in the working tree and returns their changed paths. Review the diff and selectively retain repository customizations before committing. The task does not stage, commit, or change remote settings. Repeated updates produce no further changes unless customizations differ from the templates. Apply changed rulesets after the corresponding workflows are running.
 
-Release workflows follow `bake modernize` action versions and use moving major tags where upstream provides them. These tags receive upstream updates automatically; full commit hashes select fixed revisions. The RubyGems credentials action uses its [documented `@main` reference](https://github.com/rubygems/configure-rubygems-credentials#trusted-publisher-recommended), since upstream does not provide a moving major tag. Repositories that require fixed revisions can customize these references.
+The release workflows follow `bake modernize` action versions and use moving major tags where available. The RubyGems credentials action uses its [documented `@main` reference](https://github.com/rubygems/configure-rubygems-credentials#trusted-publisher-recommended). Repositories that require fixed revisions can customize these references.
 
-The default is two approvals with explicit administrator bypass, dismissed stale reviews, approval of the last push, strict up-to-date CI, and immutable default-branch history/release tags. These branch rules affect **all PRs** into the default branch. Ordinary administrator reviews count as one review. A human who dispatches a bot-authored PR is not its author under GitHub's native rules.
+## Current scope
 
-Review `gem:github:setup:plan`, merge the setup PR, and confirm that **Release validation** and every selected check run. Then apply the four managed rulesets using an administrator's `gh` login:
+The process has published `bake-gem-github` through GitHub Actions. Each adopting repository still needs its own reviewed setup and successful release. Public single-gem repositories, ordinary stable versions, merge/squash, GitHub-hosted Linux runners, and RubyGems.org are the supported starting point.
 
-``` bash
-bundle exec bake gem:github:setup:apply
-```
+Native build matrices, reusable publisher workflows, merge queues, automated RubyGems ownership/MFA setup, cross-run artifact recovery, and organization-wide migration are outside the current setup tasks.
 
-This command changes remote rulesets and preserves unrelated rulesets. Existing rulesets with the four managed names are updated. Organization rules and other existing protections still apply. Check names in configuration must exactly match GitHub checks; a partial selection does not mean all CI is required. Keep rebase merging and merge queues disabled for the initial rollout.
-
-Create a `rubygems` GitHub environment restricted to the default branch. Do not add a second routine reviewer gate. On RubyGems, an owner must configure a Trusted Publisher with the owner/repository, workflow filename **`release-publish.yaml`**, and environment **`rubygems`** shown by `doctor`. Ownership/MFA and environment/signing bootstrap are deliberate manual steps in this first implementation; `doctor` prints desired and observed GitHub settings, not a claim that RubyGems ownership or publisher trust has been verified. See [RubyGems Trusted Publishing](https://guides.rubygems.org/trusted-publishing/).
-
-If `release.cert` exists, setup enables legacy signing. Keep this public certificate in Git and install its matching **private key** as the Actions secret `GEM_SIGNING_KEY`. Use the `rubygems` environment or an organization secret available to the release repositories. The workflow checks the certificate validity, key match, and resulting package signatures. To opt out explicitly, pass `signing=false` during setup. No long-lived RubyGems publishing key is required.
-
-Before enabling releases, confirm two people can administer the repository and recover the RubyGems account/signing key, and enough maintainers can satisfy the review policy. Pilot on one low-risk gem and prove publishing, administrator bypass, fork merges, and recovery before rolling out broadly. No organization-wide migration or live publisher setup is performed by these tasks.
-
-## Request and review
-
-``` bash
-# Local branch and commit only:
-bundle exec bake gem:release:branch:patch
-
-# From the current default branch: prepare, validate, push and open PR:
-bundle exec bake gem:github:release:patch
-
-# Remote request (also available in the Actions UI):
-gh workflow run release-prepare.yaml -f bump=patch
-```
-
-Replace `patch` with `minor` or `major`. The wrapper fetches the default branch and tags, refuses a stale local checkout, and validates an existing release PR before returning its URL. A matching local or remote branch is reused if PR creation was interrupted. Multiple open release PRs or a different requested bump stop preparation. GitHub's built-in token may require a writer to approve running workflows for its created PR; enable Actions' permission to create PRs. An organization-owned App token can be adopted later if automatic CI triggering is needed.
-
-All release changes belong in the PR. Core preparation commits additions and deletions from release hooks but never pushes, tags or publishes. Validation independently generates the expected tree from the current base. A changed base SHA alone is fine; changed generated notes are not. Ordinary PRs with no version change pass release validation and still build unsigned.
-
-If preparation stops after creating or pushing the release branch, return to the current default branch and repeat the same command. The existing branch is validated and reused, so retries do not create a second version bump or PR. Resolve any uncommitted changes before switching branches.
-
-When validation reports stale content, explicitly refresh the same release:
-
-``` bash
-git switch main
-git pull --ff-only
-bundle exec bake gem:github:release:patch refresh=true
-# Or dispatch remotely:
-gh workflow run release-prepare.yaml -f bump=patch -f refresh=true
-```
-
-Refresh first pushes the complete previous release commit to `release-backups/vVERSION/OLD_SHA`, including manual edits. It then regenerates in a clean worktree from the current default branch, validates, and updates the existing release branch using an explicit `--force-with-lease`. A concurrent remote edit causes the push to fail. Existing local release branches are left intact. Review the backup against the refreshed PR; incorporate necessary manual changes into the default branch or generation hooks and refresh again. Keep the backup until that review is complete. Replace `main` and `patch` with your configured branch and original bump type.
-
-## Publish and verify
-
-After merge/squash, the publishing workflow verifies GitHub's merged PR record and ancestry, then checks out the exact merged commit. Later development on the default branch is allowed. It regenerates against the merged commit's **first parent**, builds in a clean worktree, optionally certificate-signs, and creates two attestations over the final bytes:
-
-- A Sigstore bundle submitted explicitly with `gem push --attestation` using RubyGems 4.0.21.
-- GitHub's native SLSA provenance covering both the gem and `release.json`. This signed receipt binds the gem digest to the exact release commit, even when the workflow's own default-branch revision is newer.
-
-The workflow retains the gem, receipt and attestations before obtaining RubyGems publishing credentials. It verifies both attestations, checks the uploaded bytes and registry bundle, then pushes the specific version tag and creates the GitHub release. Existing tags/assets are checked and never overwritten. The old `after_gem_release` GitHub hook is not called by this pipeline, so there is one owner for release creation.
-
-The draft release description includes the exact version's notes from `releases.md` in the merged release checkout, followed by the PR URL, source commit, and gem digest. Notes are extracted using `bake-releases`; a missing or empty section leaves the metadata as the description. Retries preserve the existing release description.
-
-``` bash
-set -e
-for file in example-1.2.3.gem release.json; do
-  gh attestation verify "$file" \
-    --repo OWNER/REPOSITORY --bundle provenance.sigstore.json \
-    --cert-identity https://github.com/OWNER/REPOSITORY/.github/workflows/release-publish.yaml@refs/heads/main \
-    --source-ref refs/heads/main --deny-self-hosted-runners
-done
-
-jq -e --arg commit MERGED_SHA \
-  --arg digest "$(shasum -a 256 example-1.2.3.gem | cut -d ' ' -f1)" \
-  '.commit == $commit and .sha256 == $digest' release.json
-
-gem exec sigstore-cli:0.2.3 verify example-1.2.3.gem \
-  --bundle example-1.2.3.gem.sigstore.json \
-  --certificate-identity https://github.com/OWNER/REPOSITORY/.github/workflows/release-publish.yaml@refs/heads/main \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-```
-
-Download `release.json` and `provenance.sigstore.json` alongside the gem. Verify both subjects before reading the receipt's source commit and digest. GitHub CLI's `--source-digest` checks the workflow revision, which may differ from the release commit recorded in the signed receipt. Replace `main` with the configured default branch in these commands.
-
-Native GitHub records the merge and any bypass; the signed artifact receipt includes the PR and merging actor. This version does not export organization audit-log evidence or infer bypass reasons from review counts.
-
-## Recovery
-
-Use **Re-run all jobs** on the original publishing run, or:
-
-``` bash
-bundle exec bake gem:github:release:resume run=RUN_ID
-```
-
-Rerunning keeps the original event identity. A retained artifact is downloaded and its source identity/digest checked. A matching registry version resumes tag/release finalization; different bytes or a conflicting tag stop. There is no automatic yank, retag, or rebuild of an already-published version. Registry propagation is retried every ten seconds for up to one minute; a digest or attestation mismatch fails immediately.
-
-Before uploading to RubyGems, the publisher stores the verified gem, receipt and both attestation bundles together in `release.tar`, uploaded as one draft-release asset before their individual assets. The draft targets the merged commit. It publishes the draft after registry verification and tag creation. Actions artifacts are also retained for 90 days, but can disappear on rerun. Recovery falls back to `release.tar` in the draft or published release, checking its digest and requiring exactly the four expected regular files before restoring them. It verifies the original bytes and attestations, then resumes any missing individual asset uploads. Older releases without an archive can still restore their four individual assets. Existing assets and backups are compared with the original files and never replaced with conflicting content.
-
-A rerun can recover an interrupted individual asset upload once `release.tar` is available, even if the Actions artifact has disappeared. An available Actions artifact can also resume an interrupted archive upload. If neither backup completed, restore the missing original files manually; the publisher stops before uploading to RubyGems. Keep the draft until finalization succeeds. A published version is never rebuilt to fill a missing backup.
-
-GitHub concurrency does not guarantee a durable FIFO queue: rerun any publishing run displaced while pending. Resume reruns all jobs, including integrity checks; it does not repeat or second-guess the native review policy or a permitted administrator bypass. Older publishing runs execute their original code; adding this recovery support to the default branch does not change an already-triggered workflow.
-
-## Development and current limits
-
-The implementation has local repository and transport-fake tests. A real GitHub/RubyGems pilot remains necessary before enabling it across Socketry. Public single-gem repositories, ordinary stable versions, merge/squash, GitHub-hosted Linux runners, and RubyGems.org are the supported starting point. Native build matrices, reusable publisher workflows, merge queues, automated RubyGems ownership/MFA setup, cross-run artifact recovery, and organization-wide rollout are deferred.
-
-Edit this guide and regenerate `context/` with `bake utopia:project:agent:context:update`. Consumers install the generated guidance using `agent-context`.
+Edit source guides under `guides/` and regenerate the distributed guidance with `bundle exec bake utopia:project:agent:context:update`. Consumers install it through `agent-context`.

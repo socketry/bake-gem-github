@@ -7,7 +7,7 @@ Reviewed GitHub releases for Ruby gems, using `bake-gem` for branch preparation,
 - `gem:github:setup:plan` / `apply`: inspect and apply the managed GitHub rulesets.
 - `gem:github:release:resume run=ID`: retry with the original artifact.
 
-Read [the setup, release and recovery guide](https://github.com/socketry/bake-gem-github/blob/main/guides/getting-started/readme.md) before enabling publishing. Context is distributed through `agent-context`. This initial implementation requires `bake-gem` 0.15 or later and a live pilot before wider rollout.
+Read [the setup, release and recovery guide](https://github.com/socketry/bake-gem-github/blob/main/guides/getting-started/readme.md) before enabling publishing. Context is distributed through `agent-context`. Requires `bake-gem` 0.15 or later.
 
 ## Making Releases
 
