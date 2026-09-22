@@ -69,9 +69,13 @@ reviewers:
 
 Replace `your-org/managers` with your organization and team slug, for example `socketry/managers`. Individual user logins are also supported. Reviewers need at least read access to the repository. Setup resolves their GitHub IDs without changing repository access or team membership.
 
+Reviewer teams must have **Visible** visibility in GitHub team settings. Plan and apply reject **Secret** teams before changing any settings, because GitHub can silently discard them from the environment reviewer list. Setup does not change team visibility.
+
 GitHub accepts one to six users or teams, and **one approval from any listed reviewer or team member is sufficient**. It does not support a minimum environment approval count. The default two PR approvals are independent of this publishing approval.
 
 Create the environment and restrict its deployment branch as described above before running plan or apply with reviewers configured. The plan previews the current and desired environment settings. Apply replaces its reviewer list while preserving its wait timer, self-review prevention, administrator bypass setting, and deployment branch restrictions. Custom deployment protection rules are managed separately and are not modified. Reapplying an identical reviewer list leaves the environment unchanged.
+
+After updating the environment, apply reads its settings back and fails if the reviewer identities or preserved protections differ from the requested configuration. Reviewer order does not matter. Earlier updates may already have completed; inspect the environment in GitHub and rerun `gem:github:setup:plan` before retrying apply.
 
 Omitting `reviewers` leaves environment settings unmanaged, including any existing reviewer requirement. An empty list is rejected. To remove an existing requirement, change the environment settings explicitly in GitHub.
 
