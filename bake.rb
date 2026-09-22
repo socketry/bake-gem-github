@@ -3,8 +3,10 @@
 # Released under the MIT License.
 # Copyright, 2026, by Samuel Williams.
 
-# Regenerate documentation when preparing a release.
+# Update the project documentation with the new version number.
+#
+# @parameter version [String] The new version number.
 def after_gem_release_version_increment(version)
 	context["releases:update"].call(version)
-	context["utopia:project:agent:context:update"].call
+	context["utopia:project:update"].call
 end

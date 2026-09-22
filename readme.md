@@ -10,7 +10,47 @@ Maintainers need a shared release process that they can run locally or through G
 
 ## Usage
 
-Please see the [project documentation](https://socketry.github.io/bake-gem-github/) or run it locally using `bake utopia:project:serve`.
+Please see the [project documentation](https://socketry.github.io/bake-gem-github/) for more details.
+
+  - [Getting Started](https://socketry.github.io/bake-gem-github/guides/getting-started/index) - This guide explains how to configure reviewed Ruby gem releases and prepare the first release PR with `bake-gem-github`.
+
+  - [Preparing Releases](https://socketry.github.io/bake-gem-github/guides/preparing-releases/index) - This guide explains how to request a release PR, resume interrupted preparation, and refresh generated content when the default branch changes.
+
+  - [Verifying Releases](https://socketry.github.io/bake-gem-github/guides/verifying-releases/index) - This guide explains how publishing binds a gem to its reviewed source and how to verify the downloaded artifact and attestations.
+
+  - [Recovering Releases](https://socketry.github.io/bake-gem-github/guides/recovering-releases/index) - This guide explains how to resume an interrupted publishing workflow using the original gem and its verification evidence.
+
+## Releases
+
+Please see the [project releases](https://socketry.github.io/bake-gem-github/releases/index) for all releases.
+
+### Unreleased
+
+  - Stop generating `.github/releasing.md`; release instructions are maintained in the shared guide and agent context.
+  - Resume interrupted release preparation and explicitly refresh stale release PRs while preserving their previous commits.
+  - Preserve all release files in one archive before individual asset uploads, so reruns can recover interrupted drafts.
+
+### v0.2.0
+
+  - Use only the version tag for GitHub release titles.
+
+### v0.1.0
+
+  - Include the version's release notes in GitHub releases using `bake-releases`.
+  - Update generated release files in the working tree with `gem:github:setup:update`.
+
+### v0.0.5
+
+  - Preserve and recover release files even when GitHub's release list is stale.
+
+### v0.0.4
+
+  - Preserve verified release files in a draft GitHub release before uploading to RubyGems, so reruns can recover when Actions artifacts disappear.
+  - Wait for RubyGems registry propagation before finalizing releases.
+
+### v0.0.1
+
+  - Initial implementation.
 
 ## Contributing
 
