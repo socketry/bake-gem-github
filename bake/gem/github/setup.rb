@@ -9,12 +9,12 @@ def plan
 	context.lookup("gem:github:doctor").call
 end
 
-# Apply the four managed rulesets using the current gh administrator credentials.
+# Apply the four managed rulesets and configured environment reviewers using the current gh administrator credentials.
 # @returns [Hash] The managed ruleset payloads after successful application.
 def apply
 	require "bake/gem/github/project"
 	
-	return Bake::Gem::GitHub::Project.new(context.root).apply
+	Bake::Gem::GitHub::Project.new(context.root).apply
 end
 
 # Update generated files in the working tree using config/release.yaml and the installed templates.
@@ -22,5 +22,5 @@ end
 def update
 	require "bake/gem/github/setup"
 	
-	return Bake::Gem::GitHub::Setup.new(context.root).update
+	Bake::Gem::GitHub::Setup.new(context.root).update
 end

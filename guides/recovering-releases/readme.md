@@ -12,7 +12,7 @@ Use **Re-run all jobs** on the original publishing run, or:
 bundle exec bake gem:github:release:resume run=RUN_ID
 ```
 
-Rerunning keeps the original event identity. A retained artifact is downloaded and its source identity/digest checked. A matching registry version resumes tag/release finalization; different bytes or a conflicting tag stop. There is no automatic yank, retag, or rebuild of an already-published version. Registry propagation is retried every ten seconds for up to one minute; a digest or attestation mismatch fails immediately.
+Rerunning keeps the original event identity. GitHub may request publishing environment approval again. A retained artifact is downloaded and its source identity/digest checked. A matching registry version resumes tag/release finalization; different bytes or a conflicting tag stop. There is no automatic yank, retag, or rebuild of an already-published version. Registry propagation is retried every ten seconds for up to one minute; a digest or attestation mismatch fails immediately.
 
 ## Restore retained artifacts
 
