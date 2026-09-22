@@ -17,6 +17,7 @@ describe Bake::Gem::GitHub::Publisher do
 			package = Gem::Package.new(path)
 			{version: package.spec.version.to_s, certificates: package.spec.cert_chain}
 		RUBY
+		
 		expect(result).to be == {version: "1.0.0", certificates: []}
 	end
 	
@@ -26,6 +27,7 @@ describe Bake::Gem::GitHub::Publisher do
 			Bake::Gem::GitHub::Publisher.new(Dir.pwd).send(:guard_environment)
 			true
 		RUBY
+		
 		expect(result).to be == true
 	end
 	
@@ -50,6 +52,7 @@ describe Bake::Gem::GitHub::Publisher do
 			receipt = {file: "example-1.0.0.gem", commit: "a" * 40}
 			Bake::Gem::GitHub::Publisher.new(Dir.pwd).send(:output, receipt, restored: true)
 		RUBY
+		
 		expect(File.readlines(output, chomp: true)).to be == ["package=pkg/example-1.0.0.gem", "artifact=release-#{'a' * 40}", "restored=true"]
 	end
 	
@@ -64,6 +67,7 @@ describe Bake::Gem::GitHub::Publisher do
 			result = publisher.send(:gem_command, "push", "example.gem")
 			result.merge(restored: ENV["BUNDLE_GEMFILE"] == original)
 		RUBY
+		
 		expect(result).to be == {arguments: ["gem", "push", "example.gem"], gemfile: nil, directory: File.realpath(repository), restored: true}
 	end
 	
@@ -78,6 +82,7 @@ describe Bake::Gem::GitHub::Publisher do
 			end
 			publisher.send(:gem_command, "push", "example.gem")
 		RUBY
+		
 		expect(result).to be == {arguments: ["gem", "push", "example.gem"], directory: File.realpath(repository)}
 	end
 end

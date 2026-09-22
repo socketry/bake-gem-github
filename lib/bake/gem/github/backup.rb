@@ -24,6 +24,7 @@ module Bake
 				# Read only the expected regular files; reject missing, duplicate, or unexpected entries before extraction.
 				def self.read(path, names)
 					files = {}
+					
 					File.open(path, "rb") do |input|
 						::Gem::Package::TarReader.new(input) do |archive|
 							archive.each do |entry|
@@ -34,7 +35,8 @@ module Bake
 						end
 					end
 					raise "Release backup is incomplete." unless files.keys.sort == names.sort
-					files
+					
+					return files
 				end
 			end
 		end

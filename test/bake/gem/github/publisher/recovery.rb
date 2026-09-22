@@ -24,6 +24,7 @@ describe "Publication recovery" do
 	
 	def restore
 		FileUtils.rm_rf(File.join(@root, "pkg"))
+		
 		expect(ENV).to receive(:fetch).with("GITHUB_RUN_ID").and_return("123")
 		expect(Bake::Gem::GitHub::Publisher).to receive(:new).with(root).and_return(@publisher)
 		Bake::Context.load(root).call("gem:github:release:build", "number=42")
@@ -85,6 +86,7 @@ describe "Publication recovery" do
 	it "preserves the existing draft description when finalization is retried" do
 		File.write(File.join(root, "releases.md"), "## v1.0.1\n\nOriginal notes.\n")
 		@publisher.fail_release = true
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /GitHub unavailable/)
 		body = @publisher.releases.first.fetch("body") + "\nMaintainer addition.\n"
 		@publisher.releases.first["body"] = body
@@ -100,35 +102,42 @@ describe "Publication recovery" do
 	
 	it "resumes finalization after upload without uploading or rebuilding again" do
 		@publisher.fail_release = true
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /GitHub unavailable/)
 		@publisher.fail_release = false
 		restore
+		
 		expect(Bake::Gem::GitHub::Publisher).to receive(:new).with(root).and_return(@publisher)
 		Bake::Context.load(root).call("gem:github:release:publish", "number=42")
 		uploads = @publisher.commands.select{|args| args[0, 2] == ["gem", "push"]}
+		
 		expect(uploads.size).to be == 1
 		expect(uploads.first).to be(:include?, "--attestation")
 		expect(@publisher.commands.any?{|args| args.include?("push") && args.include?("--tags")}).to be == false
 		expect(@publisher.releases.first.fetch("draft")).to be == false
 		preserve = @publisher.commands.index{|args| args[0, 3] == ["gh", "release", "upload"]}
 		upload = @publisher.commands.index{|args| args[0, 2] == ["gem", "push"]}
+		
 		expect(preserve).to be < upload
 	end
 	
 	it "does not upload to RubyGems if draft asset preservation fails" do
 		@publisher.fail_preservation = true
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Preservation failed/)
 		expect(@publisher.remote_digest).to be_nil
 	end
 	
 	it "recovers an interrupted individual asset upload without an Actions artifact" do
 		@publisher.fail_preservation_after = 2
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Preservation failed/)
 		expect(@publisher.remote_digest).to be_nil
 		expect(@publisher.stored_files.keys).to be == ["release.tar", "example-1.0.1.gem"]
 		@publisher.fail_preservation_after = nil
 		receipt = restore
 		@publisher.publish(42)
+		
 		expect(@publisher.remote_digest).to be == receipt.fetch(:sha256)
 		expect(@publisher.commands.count{|args| args[0, 3] == ["gh", "release", "upload"] && args[4].end_with?("release.tar")}).to be == 1
 		expect(@publisher.releases.first.fetch("draft")).to be == false
@@ -137,18 +146,21 @@ describe "Publication recovery" do
 	it "resumes preservation from an available Actions artifact" do
 		originals = Dir.glob(File.join(root, "pkg/*")).to_h{|file| [File.basename(file), File.binread(file)]}
 		@publisher.fail_preservation = true
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Preservation failed/)
 		@publisher.stored_files.merge!(originals)
 		@publisher.artifacts = [{"name" => "release-#{'a' * 40}", "expired" => false}]
 		@publisher.fail_preservation = false
 		restore
 		@publisher.publish(42)
+		
 		expect(@publisher.releases.first.fetch("assets").size).to be == 5
 		expect(@publisher.remote_digest).to be == Digest::SHA256.hexdigest("Exact signed bytes")
 	end
 	
 	it "requires manual restoration if interrupted before either backup completed" do
 		@publisher.fail_preservation = true
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Preservation failed/)
 		expect{restore}.to raise_exception(RuntimeError, message: be =~ /incomplete/)
 		expect(@publisher.remote_digest).to be_nil
@@ -157,12 +169,14 @@ describe "Publication recovery" do
 	it "rejects a corrupted backup download" do
 		@publisher.publish(42)
 		@publisher.stored_files["release.tar"] = "corrupted"
+		
 		expect{restore}.to raise_exception(RuntimeError, message: be =~ /backup digest mismatch/)
 	end
 	
 	it "does not overwrite conflicting local files while restoring a backup" do
 		@publisher.publish(42)
 		File.write(File.join(root, "pkg/release.json"), "Local content")
+		
 		expect(ENV).to receive(:fetch).with("GITHUB_RUN_ID").and_return("123")
 		expect{@publisher.build(42)}.to raise_exception(RuntimeError, message: be =~ /Existing artifact differs/)
 		expect(File.read(File.join(root, "pkg/release.json"))).to be == "Local content"
@@ -177,14 +191,17 @@ describe "Publication recovery" do
 		@publisher.stored_files["release.tar"] = File.binread(archive)
 		@publisher.releases.first.fetch("assets").find{|asset| asset.fetch("name") == "release.tar"}["digest"] = "sha256:#{Digest::SHA256.file(archive).hexdigest}"
 		File.write(package, "Exact signed bytes")
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Existing release backup differs/)
 	end
 	
 	it "restores expired workflow artifacts from the GitHub release" do
 		@publisher.publish(42)
 		@publisher.artifacts = [{"name" => "release-#{'a' * 40}", "expired" => true}]
+		
 		expect(restore.fetch(:sha256)).to be == @publisher.remote_digest
 		@publisher.publish(42)
+		
 		expect(@publisher.commands.count{|args| args[0, 2] == ["gem", "push"]}).to be == 1
 	end
 	
@@ -192,16 +209,19 @@ describe "Publication recovery" do
 		@publisher.publish(42)
 		@publisher.releases = []
 		@publisher.artifacts = [{"name" => "release-#{'a' * 40}", "expired" => false}]
+		
 		expect(restore.fetch(:sha256)).to be == @publisher.remote_digest
 	end
 	
 	it "refuses to rebuild when the workflow artifact expired without a release backup" do
 		@publisher.artifacts = [{"name" => "release-#{'a' * 40}", "expired" => true}]
+		
 		expect{restore}.to raise_exception(RuntimeError, message: be =~ /expired/)
 	end
 	
 	it "refuses to rebuild a published version without either backup" do
 		@publisher.remote_digest = @publisher.load_receipt.fetch(:sha256)
+		
 		expect{restore}.to raise_exception(RuntimeError, message: be =~ /already published/)
 	end
 	
@@ -214,6 +234,7 @@ describe "Publication recovery" do
 			end
 		end
 		receipt = restore
+		
 		expect(receipt.fetch(:run_id)).to be == "123"
 		expect(receipt.fetch(:sha256)).to be == Digest::SHA256.hexdigest("new gem")
 	end
@@ -227,6 +248,7 @@ describe "Publication recovery" do
 		@publisher.publish(42)
 		@publisher.releases.first.fetch("assets").reject!{|asset| asset.fetch("name") == "release.tar"}
 		@publisher.releases.first.fetch("assets").pop
+		
 		expect{restore}.to raise_exception(RuntimeError, message: be =~ /incomplete/)
 	end
 	
@@ -236,17 +258,20 @@ describe "Publication recovery" do
 		receipt = JSON.parse(@publisher.stored_files.fetch("release.json"))
 		receipt["commit"] = "b" * 40
 		@publisher.stored_files["release.json"] = JSON.generate(receipt)
+		
 		expect{restore}.to raise_exception(RuntimeError, message: be =~ /different commit/)
 	end
 	
 	it "refuses a draft release targeting another commit" do
 		@publisher.releases = [{"tag_name" => "v1.0.1", "draft" => true, "target_commitish" => "b" * 40}]
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /another commit/)
 		expect(@publisher.remote_digest).to be_nil
 	end
 	
 	it "refuses duplicate release records for the same tag" do
 		@publisher.releases = [{"tag_name" => "v1.0.1"}] * 2
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Multiple GitHub releases/)
 		expect(@publisher.remote_digest).to be_nil
 	end
@@ -254,6 +279,7 @@ describe "Publication recovery" do
 	it "does not overwrite conflicting release assets" do
 		@publisher.publish(42)
 		@publisher.releases.first.fetch("assets").find{|asset| asset.fetch("name").end_with?(".gem")}["digest"] = "sha256:wrong"
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Existing release asset differs/)
 		expect(@publisher.commands.count{|args| args[0, 3] == ["gh", "release", "upload"]}).to be == 5
 	end
@@ -261,6 +287,7 @@ describe "Publication recovery" do
 	it "uses the created draft response when the release list remains stale" do
 		@publisher.stale_release_list = true
 		receipt = @publisher.publish(42)
+		
 		expect(@publisher.releases.size).to be == 1
 		expect(@publisher.releases.first.fetch("draft")).to be == false
 		expect(@publisher.remote_digest).to be == receipt.fetch(:sha256)
@@ -269,11 +296,13 @@ describe "Publication recovery" do
 	
 	it "restores an existing draft hidden by a stale release list without creating another" do
 		@publisher.fail_release = true
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /GitHub unavailable/)
 		@publisher.stale_release_list = true
 		@publisher.fail_release = false
 		restore
 		@publisher.publish(42)
+		
 		expect(@publisher.releases.size).to be == 1
 		expect(@publisher.releases.first.fetch("draft")).to be == false
 		expect(@publisher.commands.count{|args| args[0, 2] == ["gem", "push"]}).to be == 1
@@ -286,6 +315,7 @@ describe "Publication recovery" do
 				original.call(*arguments, **options)
 			end
 		end
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /lookup failed/)
 		expect(@publisher.releases).to be == []
 		expect(@publisher.remote_digest).to be_nil
@@ -293,6 +323,7 @@ describe "Publication recovery" do
 	
 	it "stops before publication when required attestation verification fails" do
 		@publisher.fail_attestation = true
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Attestation/)
 		expect(@publisher.remote_digest).to be_nil
 		expect(@publisher.commands.any?{|args| args[0, 2] == ["gem", "push"]}).to be == false
@@ -300,12 +331,14 @@ describe "Publication recovery" do
 	
 	it "refuses a published version containing different bytes" do
 		@publisher.remote_digest = Digest::SHA256.hexdigest("Someone else's artifact")
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /different bytes/)
 		expect(@publisher.commands.any?{|args| args.include?("POST")}).to be == false
 	end
 	
 	it "stops before publication when the receipt attestation is invalid" do
 		@publisher.fail_receipt_verification = true
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /Receipt attestation/)
 		expect(@publisher.remote_digest).to be_nil
 		expect(@publisher.commands.any?{|args| args[0, 2] == ["gem", "push"]}).to be == false
@@ -316,6 +349,7 @@ describe "Publication recovery" do
 		receipt = JSON.parse(File.read(path))
 		receipt["commit"] = "b" * 40
 		File.write(path, JSON.generate(receipt))
+		
 		expect{@publisher.publish(42)}.to raise_exception(RuntimeError, message: be =~ /not for this merged PR/)
 		expect(@publisher.commands).to be == []
 	end

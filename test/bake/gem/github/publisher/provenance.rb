@@ -30,6 +30,7 @@ describe Bake::Gem::GitHub::Publisher do
 				"--cert-identity", "https://github.com/socketry/example/.github/workflows/release-publish.yaml@refs/heads/main",
 				"--source-ref", "refs/heads/main", "--deny-self-hosted-runners"
 			]
+			
 			expect(commands).to be == [
 				[["gh", "attestation", "verify", "/release/pkg/example.gem", *options], {chdir: "/release"}],
 				[["gh", "attestation", "verify", "/release/pkg/release.json", *options], {chdir: "/release"}]

@@ -13,19 +13,29 @@
 def setup(checks:, repository: nil, branch: nil, approvals: 2, signing: nil, ruby: "3.4")
 	require_relative "../../lib/bake/gem/github/setup"
 	require "bake/gem/shell"
+	
 	helper = Object.new.extend(Bake::Gem::Shell)
 	remote = if repository && branch
 		{}
 	else
 		JSON.parse(helper.readlines("gh", "repo", "view", "--json", "nameWithOwner,defaultBranchRef", chdir: context.root).join)
 	end
-	options = {repository: repository || remote.fetch("nameWithOwner"), branch: branch || remote.fetch("defaultBranchRef").fetch("name"), checks: checks, approvals: approvals, ruby: ruby}
+	
+	options = {
+		repository: repository || remote.fetch("nameWithOwner"),
+		branch: branch || remote.fetch("defaultBranchRef").fetch("name"),
+		checks: checks,
+		approvals: approvals,
+		ruby: ruby,
+	}
 	options[:signing] = signing unless signing.nil?
-	Bake::Gem::GitHub::Setup.new(context.root).generate(**options)
+	
+	return Bake::Gem::GitHub::Setup.new(context.root).generate(**options)
 end
 
 # Show the desired rules, existing rules, environments, and RubyGems bootstrap values.
 def doctor
 	require_relative "../../lib/bake/gem/github/project"
-	Bake::Gem::GitHub::Project.new(context.root).doctor
+	
+	return Bake::Gem::GitHub::Project.new(context.root).doctor
 end

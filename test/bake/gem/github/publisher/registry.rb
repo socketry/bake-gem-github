@@ -35,6 +35,7 @@ describe Bake::Gem::GitHub::Publisher do
 		
 		it "waits for an absent version and a pending download without uploading again" do
 			digests.unshift(nil, Bake::Gem::GitHub::Publisher::RegistryPending.new("pending"))
+			
 			expect{verify}.not.to raise_exception
 			expect(waits).to be == [10, 10]
 		end
@@ -42,30 +43,35 @@ describe Bake::Gem::GitHub::Publisher do
 		it "waits for an absent registry attestation" do
 			digests.unshift("expected")
 			attestations.unshift(nil)
+			
 			expect{verify}.not.to raise_exception
 			expect(waits).to be == [10]
 		end
 		
 		it "stops waiting after the bounded number of attempts" do
 			digests.clear
+			
 			expect{verify}.to raise_exception(RuntimeError, message: be =~ /propagation did not complete/)
 			expect(waits).to be == [10, 10]
 		end
 		
 		it "rejects different bytes immediately" do
 			digests.replace(["different"])
+			
 			expect{verify}.to raise_exception(RuntimeError, message: be =~ /different bytes/)
 			expect(waits).to be == []
 		end
 		
 		it "rejects an unrelated attestation immediately" do
 			attestations.replace([JSON.generate([{bundle: {mediaType: "unrelated"}}])])
+			
 			expect{verify}.to raise_exception(RuntimeError, message: be =~ /Sigstore bundle/)
 			expect(waits).to be == []
 		end
 		
 		it "does not hide registry request errors" do
 			digests.replace([RuntimeError.new("Registry request failed: 403")])
+			
 			expect{verify}.to raise_exception(RuntimeError, message: be =~ /403/)
 			expect(waits).to be == []
 		end
@@ -99,18 +105,21 @@ describe Bake::Gem::GitHub::Publisher do
 		
 		it "recognizes an unpublished version without requesting the missing download" do
 			responses[version_path] = response("404")
+			
 			expect(publisher.send(:registry_digest, "example", "1.0.1")).to be_nil
 		end
 		
 		it "hashes the actual published package bytes" do
 			responses[version_path] = response("200", "{}")
 			responses[download_path] = response("200", "gem bytes\x00\xff".b)
+			
 			expect(publisher.send(:registry_digest, "example", "1.0.1")).to be == Digest::SHA256.hexdigest("gem bytes\x00\xff".b)
 		end
 		
 		["403", "500"].each do |code|
 			it "rejects version API errors", unique: code do
 				responses[version_path] = response(code)
+				
 				expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be == "Registry request failed: #{code}")
 			end
 		end
@@ -118,12 +127,14 @@ describe Bake::Gem::GitHub::Publisher do
 		it "rejects a forbidden download for an existing version" do
 			responses[version_path] = response("200", "{}")
 			responses[download_path] = response("403")
+			
 			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be == "Registry request failed: 403")
 		end
 		
 		it "rejects a missing download for an existing version" do
 			responses[version_path] = response("200", "{}")
 			responses[download_path] = response("404")
+			
 			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /Published gem download is missing/)
 		end
 		
@@ -132,18 +143,21 @@ describe Bake::Gem::GitHub::Publisher do
 			responses[version_path]["location"] = "/version.json"
 			responses["/version.json"] = response("200", "{}")
 			responses[download_path] = response("200", "gem bytes")
+			
 			expect(publisher.send(:registry_digest, "example", "1.0.1")).to be == Digest::SHA256.hexdigest("gem bytes")
 		end
 		
 		it "rejects a redirect to an unencrypted download" do
 			responses[version_path] = response("302")
 			responses[version_path]["location"] = "http://rubygems.org/version.json"
+			
 			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /requires HTTPS/)
 		end
 		
 		it "bounds registry redirect loops" do
 			responses[version_path] = response("302")
 			responses[version_path]["location"] = version_path
+			
 			expect{publisher.send(:registry_digest, "example", "1.0.1")}.to raise_exception(RuntimeError, message: be =~ /Too many registry redirects/)
 		end
 	end

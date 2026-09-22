@@ -24,19 +24,37 @@ module Bake
 					raise "Unsupported branch name." unless branch.match?(/\A[\w.\/-]+\z/)
 					raise "Select the required CI check names." if checks.empty?
 					raise "Review count must be between 1 and 6." unless (1..6).include?(approvals)
-					config = {"schema" => 1, "repository" => repository, "branch" => branch, "checks" => (checks + ["Release validation"]).uniq, "approvals" => approvals, "signing" => signing, "ruby" => ruby, "environment" => "rubygems"}
+					
+					config = {
+						"schema" => 1,
+						"repository" => repository,
+						"branch" => branch,
+						"checks" => (checks + ["Release validation"]).uniq,
+						"approvals" => approvals,
+						"signing" => signing,
+						"ruby" => ruby,
+						"environment" => "rubygems",
+					}
+					
 					files = render(config)
-					conflicts = files.keys.select{|name| File.exist?(File.join(@root, name)) && File.read(File.join(@root, name)) != files[name]}
+					conflicts = files.keys.select do |name|
+						path = File.join(@root, name)
+						File.exist?(path) && File.read(path) != files[name]
+					end
+					
 					raise "Existing files differ; review them before regenerating: #{conflicts.join(', ')}" unless conflicts.empty?
+					
 					write(files)
-					files.keys
+					
+					return files.keys
 				end
 				
 				# Update generated files in the working tree using the existing configuration; return changed paths.
 				def update
 					config = YAML.safe_load_file(File.join(@root, "config/release.yaml"))
 					raise "Unsupported release configuration." unless config.fetch("schema") == 1
-					write(render(config))
+					
+					return write(render(config))
 				end
 				
 				# Native review/check rules allow PR-only administrator bypass; history rules have no bypass.
@@ -44,11 +62,48 @@ module Bake
 					conditions = {ref_name: {include: ["refs/heads/#{config.fetch('branch')}"], exclude: []}}
 					common = {target: "branch", enforcement: "active", conditions: conditions}
 					bypass = [{actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "pull_request"}]
-					{
-						"reviews" => common.merge(name: "Gem release reviews", bypass_actors: bypass, rules: [{type: "pull_request", parameters: {required_approving_review_count: config.fetch("approvals"), dismiss_stale_reviews_on_push: true, require_last_push_approval: true, required_review_thread_resolution: true, require_code_owner_review: false, allowed_merge_methods: ["merge", "squash"]}}]),
-						"checks" => common.merge(name: "Gem release checks", bypass_actors: bypass, rules: [{type: "required_status_checks", parameters: {strict_required_status_checks_policy: true, do_not_enforce_on_create: false, required_status_checks: config.fetch("checks").map{|name| {context: name}}}}]),
-						"history" => common.merge(name: "Gem release history", bypass_actors: [], rules: [{type: "deletion"}, {type: "non_fast_forward"}]),
-						"tags" => {name: "Gem release tags", target: "tag", enforcement: "active", bypass_actors: [], conditions: {ref_name: {include: ["refs/tags/v*"], exclude: []}}, rules: [{type: "deletion"}, {type: "non_fast_forward"}]}
+					
+					return {
+						"reviews" => common.merge(
+							name: "Gem release reviews",
+							bypass_actors: bypass,
+							rules: [{
+								type: "pull_request",
+								parameters: {
+									required_approving_review_count: config.fetch("approvals"),
+									dismiss_stale_reviews_on_push: true,
+									require_last_push_approval: true,
+									required_review_thread_resolution: true,
+									require_code_owner_review: false,
+									allowed_merge_methods: ["merge", "squash"],
+								},
+							}],
+						),
+						"checks" => common.merge(
+							name: "Gem release checks",
+							bypass_actors: bypass,
+							rules: [{
+								type: "required_status_checks",
+								parameters: {
+									strict_required_status_checks_policy: true,
+									do_not_enforce_on_create: false,
+									required_status_checks: config.fetch("checks").map{|name| {context: name}},
+								},
+							}],
+						),
+						"history" => common.merge(
+							name: "Gem release history",
+							bypass_actors: [],
+							rules: [{type: "deletion"}, {type: "non_fast_forward"}],
+						),
+						"tags" => {
+							name: "Gem release tags",
+							target: "tag",
+							enforcement: "active",
+							bypass_actors: [],
+							conditions: {ref_name: {include: ["refs/tags/v*"], exclude: []}},
+							rules: [{type: "deletion"}, {type: "non_fast_forward"}],
+						},
 					}
 				end
 				
@@ -58,8 +113,10 @@ module Bake
 					files.filter_map do |name, content|
 						path = File.join(@root, name)
 						next if File.exist?(path) && File.read(path) == content
+						
 						FileUtils.mkdir_p(File.dirname(path))
 						File.write(path, content)
+						
 						name
 					end
 				end
@@ -68,15 +125,18 @@ module Bake
 					branch = config.fetch("branch")
 					ruby = config.fetch("ruby")
 					signing = config.fetch("signing")
+					
 					templates = File.expand_path("../../../../templates", __dir__)
 					files = {"config/release.yaml" => YAML.dump(config)}
 					Dir.glob("*.erb", base: templates).each do |name|
 						files[".github/workflows/#{name.delete_suffix('.erb')}"] = ERB.new(File.read(File.join(templates, name)), trim_mode: "-").result(binding)
 					end
+					
 					self.class.rules(config).each do |name, rule|
 						files[".github/release-rules/#{name}.json"] = JSON.pretty_generate(rule) + "\n"
 					end
-					files
+					
+					return files
 				end
 			end
 		end

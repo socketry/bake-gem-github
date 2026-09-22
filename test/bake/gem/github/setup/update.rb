@@ -27,8 +27,10 @@ describe Bake::Gem::GitHub::Setup do
 			registry = Bake::Registry::Aggregate.new
 			registry.append_path(::Gem.loaded_specs.fetch("bake-gem-github").full_gem_path)
 			changed = Bake::Context.new(registry, repository).call("gem:github:setup:update")
+			
 			expect(changed.sort).to be == [".github/release-rules/checks.json", ".github/release-rules/reviews.json", ".github/workflows/release-validate.yaml"]
 			diff = git("diff")
+			
 			expect(diff).to be(:include?, "-# Custom workflow")
 			expect(diff).to be(:include?, '+            "context": "New check"')
 			expect(git("rev-parse", "HEAD")).to be == original
@@ -43,6 +45,7 @@ describe Bake::Gem::GitHub::Setup do
 			path = File.join(repository, ".github/workflows/release-validate.yaml")
 			original = File.read(path)
 			File.unlink(path)
+			
 			expect(setup.update).to be == [".github/workflows/release-validate.yaml"]
 			expect(File.read(path)).to be == original
 			expect(setup.update).to be == []
@@ -51,6 +54,7 @@ describe Bake::Gem::GitHub::Setup do
 		
 		it "refuses unsupported configuration schemas" do
 			File.write(File.join(repository, "config/release.yaml"), YAML.dump("schema" => 2))
+			
 			expect{setup.update}.to raise_exception(RuntimeError, message: be =~ /Unsupported release configuration/)
 		end
 	end

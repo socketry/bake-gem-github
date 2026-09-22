@@ -26,13 +26,15 @@ end
 # Resolve and validate a merged PR, emitting a commit output for the publishing job.
 def resolve(number: ENV.fetch("RELEASE_PR"))
 	result = Bake::Gem::GitHub::Project.new(context.root).inspect_release(number)
+	
 	if path = ENV["GITHUB_OUTPUT"]
 		File.open(path, "a") do |file|
 			file.puts "release=#{!result.nil?}"
 			file.puts "commit=#{result.fetch(:commit)}" if result
 		end
 	end
-	result
+	
+	return result
 end
 
 # Build or restore the exact artifact for a merged release PR.
@@ -50,5 +52,6 @@ def resume(run:)
 	project = Bake::Gem::GitHub::Project.new(context.root)
 	details = project.api("actions/runs/#{Integer(run)}")
 	raise "Expected a release-publish workflow run." unless details.fetch("path") == ".github/workflows/release-publish.yaml"
-	project.system("gh", "run", "rerun", run.to_s, "--repo", project.config.fetch("repository"), chdir: context.root)
+	
+	return project.system("gh", "run", "rerun", run.to_s, "--repo", project.config.fetch("repository"), chdir: context.root)
 end
