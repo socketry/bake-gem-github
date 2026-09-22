@@ -58,39 +58,20 @@ module Bake
 					system("git", "fetch", "origin", branch, "--tags", chdir: @root)
 					raise "Local branch differs from origin/#{branch}." unless @release.resolve("HEAD") == @release.resolve("origin/#{branch}")
 					
-					pulls = JSON.parse(readlines(
-						"gh", "pr", "list", "--repo", @repository, "--base", branch, "--state", "open",
-						"--json", "headRefName,url,isCrossRepository", "--limit", "1000", chdir: @root,
-					).join)
-					pulls = pulls.select{|pr| !pr["isCrossRepository"] && pr.fetch("headRefName").start_with?("releases/v")}
-					raise "Multiple release PRs are open; select one before preparing another release." if pulls.size > 1
-					
-					existing = pulls.first
+					pull_request = find_release_pull_request(branch)
 					version = Version.new(helper.gemspec.version.segments, nil).increment(Release::BUMPS.fetch(bump)).join
-					name = "releases/v#{version}"
-					raise "Existing release PR uses #{existing.fetch('headRefName')}; use its bump type or close it first." if existing && existing.fetch("headRefName") != name
+					release_branch = "releases/v#{version}"
+					if pull_request && pull_request.fetch("headRefName") != release_branch
+						raise "Existing release PR uses #{pull_request.fetch('headRefName')}; use its bump type or close it first."
+					end
 					
 					base = @release.resolve("HEAD")
-					ref = "refs/heads/#{name}"
-					remote = readlines("git", "ls-remote", "--heads", "origin", ref, chdir: @root).first
-					if remote
-						system("git", "fetch", "origin", ref, chdir: @root)
-						remote = @release.resolve("FETCH_HEAD")
-					end
-					
-					candidate = remote
-					if !candidate && readlines("git", "branch", "--list", name, chdir: @root).any?
-						candidate = @release.resolve(ref)
-					end
+					release_ref = "refs/heads/#{release_branch}"
+					remote_commit = fetch_release_branch(release_ref)
+					candidate = remote_commit || local_release_commit(release_branch)
 					
 					if candidate && refresh
-						# Preserve the complete previous tree before replacing the release branch:
-						backup = "refs/heads/release-backups/v#{version}/#{candidate}"
-						push("#{candidate}:#{backup}")
-						candidate = @release.worktree(base) do |path|
-							@release.bake(path, "gem:release:version:#{bump}")
-							readlines("git", "rev-parse", "HEAD", chdir: path).join.strip
-						end
+						candidate = refresh_release(candidate, base: base, bump: bump, version: version)
 					elsif !candidate
 						context.lookup("gem:release:branch:#{bump}").call
 						candidate = @release.resolve("HEAD")
@@ -99,25 +80,13 @@ module Bake
 					metadata = @release.validate(base: base, candidate: candidate)
 					raise "Release branch does not contain the requested version #{version}." unless metadata.fetch(:version) == version
 					
-					push("--force-with-lease=#{ref}:#{remote}", "#{candidate}:#{ref}")
-					return existing.fetch("url") if existing
+					push("--force-with-lease=#{release_ref}:#{remote_commit}", "#{candidate}:#{release_ref}")
+					return pull_request.fetch("url") if pull_request
 					
-					body = <<~BODY
-						Release #{helper.gemspec.name} #{version}.
-
-						Prepared from #{base}. The complete release tree is regenerated during validation. \
-						Merging publishes the resulting commit through release-publish.yaml after native \
-						reviews and required CI (or explicit administrator bypass).
-					BODY
-					
-					return Tempfile.create("release-pr") do |file|
-						file.write(body)
-						file.flush
-						readlines(
-							"gh", "pr", "create", "--repo", @repository, "--base", branch, "--head", name,
-							"--title", "Release v#{version}", "--body-file", file.path, chdir: @root,
-						).join.strip
-					end
+					return create_release_pull_request(
+						helper.gemspec.name, version,
+						branch: branch, release_branch: release_branch, base: base,
+					)
 				end
 				
 				# Resolve a merged PR through GitHub, and require its actual merge commit in default-branch history.
@@ -196,6 +165,71 @@ module Bake
 				end
 				
 				private
+				
+				# Find the repository's sole release PR, excluding forks.
+				def find_release_pull_request(branch)
+					response = readlines(
+						"gh", "pr", "list", "--repo", @repository, "--base", branch,
+						"--state", "open", "--json", "headRefName,url,isCrossRepository",
+						"--limit", "1000", chdir: @root,
+					)
+					pull_requests = JSON.parse(response.join).select do |pull_request|
+						!pull_request["isCrossRepository"] && pull_request.fetch("headRefName").start_with?("releases/v")
+					end
+					raise "Multiple release PRs are open; select one before preparing another release." if pull_requests.size > 1
+					
+					return pull_requests.first
+				end
+				
+				# Fetch the remote branch and return the commit used for the push lease.
+				def fetch_release_branch(reference)
+					remote = readlines("git", "ls-remote", "--heads", "origin", reference, chdir: @root)
+					return nil if remote.empty?
+					
+					system("git", "fetch", "origin", reference, chdir: @root)
+					
+					return @release.resolve("FETCH_HEAD")
+				end
+				
+				# Locate preparation which stopped before pushing its branch.
+				def local_release_commit(branch)
+					return nil if readlines("git", "branch", "--list", branch, chdir: @root).empty?
+					
+					return @release.resolve("refs/heads/#{branch}")
+				end
+				
+				# Preserve the previous release before regenerating it from the current base.
+				def refresh_release(candidate, base:, bump:, version:)
+					backup_ref = "refs/heads/release-backups/v#{version}/#{candidate}"
+					push("#{candidate}:#{backup_ref}")
+					
+					return @release.worktree(base) do |path|
+						@release.bake(path, "gem:release:version:#{bump}")
+						readlines("git", "rev-parse", "HEAD", chdir: path).join.strip
+					end
+				end
+				
+				# Open a PR for the already validated and pushed release branch.
+				def create_release_pull_request(name, version, branch:, release_branch:, base:)
+					body = <<~BODY
+						Release #{name} #{version}.
+
+						Prepared from #{base}. The complete release tree is regenerated during validation. \
+						Merging publishes the resulting commit through release-publish.yaml after native \
+						reviews and required CI (or explicit administrator bypass).
+					BODY
+					
+					return Tempfile.create("release-pr") do |file|
+						file.write(body)
+						file.flush
+						
+						readlines(
+							"gh", "pr", "create", "--repo", @repository, "--base", branch,
+							"--head", release_branch, "--title", "Release v#{version}",
+							"--body-file", file.path, chdir: @root,
+						).join.strip
+					end
+				end
 				
 				def push(*arguments)
 					system("git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "origin", *arguments, chdir: @root)
