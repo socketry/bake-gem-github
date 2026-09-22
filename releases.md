@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.5.0
 
   - Support rebase merging by requiring each release PR to contain exactly one commit, while leaving ordinary PRs unrestricted. Generated rules allow merge, squash, and rebase methods according to repository settings.
 
