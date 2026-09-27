@@ -24,6 +24,11 @@ Please see the [project documentation](https://socketry.github.io/bake-gem-githu
 
 Please see the [project releases](https://socketry.github.io/bake-gem-github/releases/index) for all releases.
 
+### v0.6.0
+
+  - Register RubyGems trusted publishers from the gemspec and release configuration with `gem:github:setup:publisher`, reusing existing registrations and RubyGems authentication/MFA support.
+  - Check publisher registration explicitly with `gem:github:setup:plan publisher=true`.
+
 ### v0.5.0
 
   - Support rebase merging by requiring each release PR to contain exactly one commit, while leaving ordinary PRs unrestricted. Generated rules allow merge, squash, and rebase methods according to repository settings.
