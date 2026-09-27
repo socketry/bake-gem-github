@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.6.0
 
   - Register RubyGems trusted publishers from the gemspec and release configuration with `gem:github:setup:publisher`, reusing existing registrations and RubyGems authentication/MFA support.
   - Check publisher registration explicitly with `gem:github:setup:plan publisher=true`.
