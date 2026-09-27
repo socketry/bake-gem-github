@@ -5,6 +5,7 @@
 
 require "bake/gem/github/repository_context"
 require "bake/gem/github/project_client"
+require "bake/gem/github/trusted_publisher"
 
 describe Bake::Gem::GitHub::Project do
 	include Bake::Gem::GitHub::RepositoryContext
@@ -120,12 +121,62 @@ describe Bake::Gem::GitHub::Project do
 		
 		it "reports desired and observed settings without writing" do
 			expect(Bake::Gem::GitHub::Project).to receive(:new).with(repository).and_return(project)
+			expect(Bake::Gem::GitHub::TrustedPublisher).not.to receive(:load)
 			result = Bake::Context.load(repository).call("gem:github:setup:plan")
 			
 			expect(result[:desired_rules].keys).to be == %w[reviews checks history tags]
 			expect(result[:existing_rules]).to be == []
 			expect(result[:trusted_publisher][:workflow_filename]).to be == "release-publish.yaml"
 			expect(project.writes).to be == []
+		end
+		
+		["false", "true"].each do |enabled|
+			it "checks RubyGems only when explicitly requested", unique: enabled do
+				expect(Bake::Gem::GitHub::Project).to receive(:new).with(repository).and_return(project)
+				if enabled == "true"
+					publisher = Object.new
+					expect(Bake::Gem::GitHub::TrustedPublisher).to receive(:load).with(repository, key: :publisher, otp: "012345").and_return(publisher)
+					expect(publisher).to receive(:status).and_return({configured: true})
+				else
+					expect(Bake::Gem::GitHub::TrustedPublisher).not.to receive(:load)
+				end
+				result = Bake::Context.load(repository).call("gem:github:setup:plan", "publisher=#{enabled}", "key=publisher", "otp=012345")
+				
+				expect(result[:trusted_publisher_status]).to be == (enabled == "true" ? {configured: true} : nil)
+				expect(project.writes).to be == []
+			end
+		end
+		
+		it "registers a publisher through the setup task" do
+			publisher = Object.new
+			expect(Bake::Gem::GitHub::TrustedPublisher).to receive(:load).with(repository, key: :publisher, otp: "012345").and_return(publisher)
+			expect(publisher).to receive(:register).and_return({created: true})
+			result = Bake::Context.load(repository).call("gem:github:setup:publisher", "key=publisher", "otp=012345")
+			
+			expect(result).to be == {created: true}
+			expect(project.requests).to be == []
+		end
+		
+		it "loads the gem identity and publisher restrictions from the current project" do
+			config_path = File.join(repository, "config/release.yaml")
+			config = YAML.safe_load_file(config_path)
+			config.merge!("repository" => "another-org/another-repository", "environment" => "production")
+			File.write(config_path, YAML.dump(config))
+			result = isolated_project(<<~'RUBY')
+				require "bake/gem/github/trusted_publisher"
+				class ConfiguredPublisher < Bake::Gem::GitHub::TrustedPublisher
+					def self.new(name, settings, **options)
+						{name: name, settings: settings, options: options}
+					end
+				end
+				ConfiguredPublisher.load(Dir.pwd, key: :publisher, otp: "012345")
+			RUBY
+			
+			expect(result).to be == {
+				name: "example",
+				settings: {repository_owner: "another-org", repository_name: "another-repository", workflow_filename: "release-publish.yaml", environment: "production"},
+				options: {key: :publisher, otp: "012345"},
+			}
 		end
 		
 		it "creates missing managed rulesets while preserving unrelated rulesets" do

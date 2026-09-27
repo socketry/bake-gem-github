@@ -181,12 +181,18 @@ module Bake
 						existing_rules: api("rulesets?per_page=100"),
 						environments: api("environments"),
 						environment_changes: environment_changes,
-						trusted_publisher: {
-							repository_owner: @repository.split("/").first,
-							repository_name: @repository.split("/").last,
-							workflow_filename: "release-publish.yaml",
-							environment: @config.fetch("environment"),
-						}
+						trusted_publisher: trusted_publisher,
+					}
+				end
+				
+				# Describe the RubyGems publisher for the reviewed release workflow.
+				# @returns [Hash] Repository, workflow filename, and environment settings.
+				def trusted_publisher
+					{
+						repository_owner: @repository.split("/").first,
+						repository_name: @repository.split("/").last,
+						workflow_filename: "release-publish.yaml",
+						environment: @config.fetch("environment"),
 					}
 				end
 				

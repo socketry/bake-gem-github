@@ -48,9 +48,25 @@ The rules require two approvals by default, allow explicit administrator bypass,
 
 ## Configure publishing credentials
 
-Create a `rubygems` GitHub environment restricted to the default branch. On RubyGems, an owner must configure a Trusted Publisher with the values printed by `gem:github:setup:plan`: the owner/repository, workflow filename **`release-publish.yaml`**, and environment **`rubygems`**. See [RubyGems Trusted Publishing](https://guides.rubygems.org/trusted-publishing/) for the account setup.
+Create a `rubygems` GitHub environment restricted to the default branch. For an existing gem on RubyGems.org, run this task from the repository root as a gem owner:
 
-Ownership, MFA, and signing bootstrap are manual setup steps. The plan reports expected RubyGems values; it does not verify ownership or publisher trust. Trusted Publishing supplies the publishing credential for each run, so a long-lived RubyGems API key is unnecessary.
+``` bash
+bundle exec bake gem:github:setup:publisher
+```
+
+The task reads the gem name from its gemspec and the owner/repository and environment from `config/release.yaml`. It registers the **`release-publish.yaml`** workflow with the configured environment (**`rubygems`** by default). An exact existing match is reused, so reruns do not create duplicate registrations. Other publishers are preserved; the task does not remove or replace them.
+
+Without an explicitly supplied API key, the task prompts for RubyGems credentials and any required MFA verification. It requests a key with only the `configure_trusted_publishers` scope, expiring after 15 minutes, and keeps it in memory. It does not read or overwrite your default saved push key. To use an existing key with this scope, supply `GEM_HOST_API_KEY` or select a named RubyGems credential with `key=publisher`. Registration and the optional plan check also accept `otp=123456` or `GEM_HOST_OTP_CODE` when needed.
+
+To check registration without creating a publisher:
+
+``` bash
+bundle exec bake gem:github:setup:plan publisher=true
+```
+
+This adds `trusted_publisher_status` to the plan, including `configured` and the matching registration. The default plan only reports expected RubyGems values and does not authenticate to RubyGems. Authentication, ownership, and API failures stop the task rather than being reported as a missing registration.
+
+For a gem that has never been published, configure a pending publisher manually. Account ownership, MFA enrollment, the GitHub environment, and signing bootstrap remain manual setup steps. See [RubyGems Trusted Publishing](https://guides.rubygems.org/trusted-publishing/) for account setup. Trusted Publishing supplies the publishing credential for each release, so a long-lived RubyGems API key is unnecessary.
 
 When `release.cert` exists, setup enables certificate signing. Commit the public certificate and install its matching private key as `GEM_SIGNING_KEY`, either in the `rubygems` environment or as an organization secret available to the repository. The publisher checks certificate validity, key matching, and package signatures. Use `signing=false` during setup to disable certificate signing.
 
