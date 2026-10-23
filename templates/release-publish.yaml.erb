@@ -68,9 +68,6 @@ jobs:
         id: build
         env:
           GITHUB_TOKEN: ${{ github.token }}
-<% if signing -%>
-          GEM_SIGNING_KEY: ${{ secrets.GEM_SIGNING_KEY }}
-<% end -%>
         run: bundle exec bake gem:github:release:build
       - name: Sign RubyGems attestation
         if: steps.build.outputs.restored != 'true'

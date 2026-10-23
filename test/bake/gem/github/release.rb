@@ -42,7 +42,7 @@ describe "GitHub release tasks" do
 				puts JSON.generate(nameWithOwner: "socketry/example", defaultBranchRef: {name: "main"})
 			RUBY
 			File.chmod(0755, File.join(bin, "gh"))
-			isolated_project('Bake::Context.load(Dir.pwd).call("gem:github:setup", "checks=Tests", "signing=false")', env: {"PATH" => "#{bin}:#{ENV.fetch('PATH')}"})
+			isolated_project('Bake::Context.load(Dir.pwd).call("gem:github:setup", "checks=Tests")', env: {"PATH" => "#{bin}:#{ENV.fetch('PATH')}"})
 			
 			expect(YAML.safe_load_file(File.join(repository, "config/release.yaml"))).to have_keys("repository" => be == "socketry/example", "branch" => be == "main")
 		end

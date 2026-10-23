@@ -1,5 +1,10 @@
 # Releases
 
+## Unreleased
+
+  - Remove RubyGems certificate signing and its private-key requirement. Publishing always builds unsigned gems and verifies Sigstore and GitHub provenance attestations.
+  - Remove the setup `signing` option. Regenerate workflows with `gem:github:setup:update` to remove legacy configuration and signing-secret references.
+
 ## v0.6.0
 
   - Register RubyGems trusted publishers from the gemspec and release configuration with `gem:github:setup:publisher`, reusing existing registrations and RubyGems authentication/MFA support.

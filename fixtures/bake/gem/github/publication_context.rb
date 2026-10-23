@@ -28,7 +28,7 @@ module Bake
 				end
 				
 				before do
-					Setup.new(root).generate(repository: "socketry/example", checks: ["Test"], signing: false)
+					Setup.new(root).generate(repository: "socketry/example", checks: ["Test"])
 					
 					FileUtils.mkdir_p(File.join(root, "pkg"))
 					File.write(File.join(root, "pkg", receipt.fetch(:file)), "Exact signed bytes")

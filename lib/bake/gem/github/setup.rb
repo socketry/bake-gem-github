@@ -24,11 +24,10 @@ module Bake
 				# @parameter checks [Array(String)] Required CI job names; release validation is added automatically.
 				# @parameter approvals [Integer] Required approvals, between one and six.
 				# @parameter reviewers [Array(String) | Nil] Publishing environment reviewers, as user logins or organization/team names. Nil leaves environment settings unmanaged.
-				# @parameter signing [Boolean] Whether publishing requires the certificate and matching private key.
 				# @parameter ruby [String] The Ruby version used by release workflows.
 				# @returns [Array(String)] Generated paths relative to the repository root.
 				# @raises [RuntimeError] If configuration is invalid or an existing generated file differs.
-				def generate(repository:, branch: "main", checks:, approvals: 2, reviewers: nil, signing: File.file?(File.join(@root, "release.cert")), ruby: "3.4")
+				def generate(repository:, branch: "main", checks:, approvals: 2, reviewers: nil, ruby: "3.4")
 					raise "Expected owner/repository." unless repository.match?(/\A[\w.-]+\/[\w.-]+\z/)
 					raise "Unsupported branch name." unless branch.match?(/\A[\w.\/-]+\z/)
 					raise "Select the required CI check names." if checks.empty?
@@ -40,7 +39,6 @@ module Bake
 						"branch" => branch,
 						"checks" => (checks + ["Release validation"]).uniq,
 						"approvals" => approvals,
-						"signing" => signing,
 						"ruby" => ruby,
 						"environment" => "rubygems",
 					}
@@ -145,10 +143,10 @@ module Bake
 				end
 				
 				def render(config)
+					config.delete("signing")
 					self.class.validate_reviewers(config["reviewers"]) if config.key?("reviewers")
 					branch = config.fetch("branch")
 					ruby = config.fetch("ruby")
-					signing = config.fetch("signing")
 					
 					templates = File.expand_path("../../../../templates", __dir__)
 					files = {"config/release.yaml" => YAML.dump(config)}

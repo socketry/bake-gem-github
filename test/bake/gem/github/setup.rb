@@ -13,17 +13,17 @@ describe Bake::Gem::GitHub::Setup do
 	let(:setup) {subject.new(root)}
 	
 	def generate
-		setup.generate(repository: "socketry/example", checks: ["Ruby 3.4"], signing: false)
+		setup.generate(repository: "socketry/example", checks: ["Ruby 3.4"])
 	end
 	
 	it "accepts the documented setup command and discovers all workflow tasks" do
 		registry = Bake::Registry::Aggregate.new
 		registry.append_path(::Gem.loaded_specs.fetch("bake-gem-github").full_gem_path)
 		context = Bake::Context.new(registry, root)
-		context.call("gem:github:setup", "repository=socketry/example", "branch=main", "checks=Tests,RuboCop", "signing=false", "approvals=2", "reviewers=socketry/managers,ioquatix")
+		context.call("gem:github:setup", "repository=socketry/example", "branch=main", "checks=Tests,RuboCop", "approvals=2", "reviewers=socketry/managers,ioquatix")
 		config = YAML.safe_load_file(File.join(root, "config/release.yaml"))
 		
-		expect(config.fetch("signing")).to be == false
+		expect(config).not.to have_keys("signing")
 		expect(config.fetch("approvals")).to be == 2
 		expect(config.fetch("reviewers")).to be == ["socketry/managers", "ioquatix"]
 		%w[validate resolve build publish resume patch minor major].each do |name|
@@ -95,7 +95,7 @@ describe Bake::Gem::GitHub::Setup do
 	end
 	
 	it "pins the pushed commit and queues only validated releases for environment approval" do
-		setup.generate(repository: "socketry/example", branch: "stable", checks: ["Tests"], signing: false)
+		setup.generate(repository: "socketry/example", branch: "stable", checks: ["Tests"])
 		workflow = YAML.safe_load_file(File.join(root, ".github/workflows/release-publish.yaml"))
 		
 		expect(workflow.fetch(true)).to be == {"push" => {"branches" => ["stable"]}}

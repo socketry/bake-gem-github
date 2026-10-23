@@ -36,7 +36,7 @@ Merging into the configured default branch triggers `release-publish.yaml` throu
 
 Each release must land as the tip of its own push, as it does when merging a PR through GitHub. Later pushes do not change a pending release's source: inspection and publishing remain pinned to the original commit, and reruns use the same event. Do not combine a release and later changes into one direct push. If you automate merging, use a GitHub App or personal access token; pushes made using a workflow's `GITHUB_TOKEN` do not trigger another workflow.
 
-Only validated releases enter the publishing queue and request approval from the `rubygems` environment when required. Ordinary pushes cannot replace them in that queue. The publishing job retains the existing signing, attestation, and artifact recovery checks.
+Only validated releases enter the publishing queue and request approval from the `rubygems` environment when required. Ordinary pushes cannot replace them in that queue. The publishing job retains attestation and artifact recovery checks.
 
 ## Resume interrupted preparation
 

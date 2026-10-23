@@ -22,7 +22,7 @@ describe Bake::Gem::GitHub::Publisher do
 	end
 	
 	before do
-		Bake::Gem::GitHub::Setup.new(root).generate(repository: "socketry/example", checks: ["Test"], signing: false)
+		Bake::Gem::GitHub::Setup.new(root).generate(repository: "socketry/example", checks: ["Test"])
 		git("init", "--initial-branch=main")
 		git("config", "core.hooksPath", File::NULL)
 		git("config", "user.name", "Test")
@@ -69,17 +69,11 @@ describe Bake::Gem::GitHub::Publisher do
 		expect{publisher.merged(42)}.to raise_exception(RuntimeError, message: be =~ /configured branch/)
 	end
 	
-	it "certificate-signs committed source and excludes dirty checkout content" do
-		key = OpenSSL::PKey::RSA.new(2048)
-		certificate = OpenSSL::X509::Certificate.new
-		certificate.version = 2
-		certificate.serial = 1
-		certificate.subject = certificate.issuer = OpenSSL::X509::Name.parse("/CN=Release Test")
-		certificate.public_key = key.public_key
-		certificate.not_before = Time.now - 60
-		certificate.not_after = Time.now + 3600
-		certificate.sign(key, OpenSSL::Digest.new("SHA256"))
-		File.write(File.join(root, "release.cert"), certificate.to_pem)
+	it "builds unsigned committed source despite legacy signing settings and a dirty checkout" do
+		config_path = File.join(root, "config/release.yaml")
+		config = YAML.safe_load_file(config_path).merge("signing" => true)
+		File.write(config_path, YAML.dump(config))
+		File.write(File.join(root, "release.cert"), "Legacy certificate")
 		File.write(File.join(root, "example.rb"), "ORIGINAL")
 		File.write(File.join(root, "example.gemspec"), <<~RUBY)
 			Gem::Specification.new do |spec|
@@ -89,22 +83,28 @@ describe Bake::Gem::GitHub::Publisher do
 				spec.summary = "Test gem"
 				spec.files = ["example.rb"]
 				spec.cert_chain = ["release.cert"]
+				spec.signing_key = "/missing/private-key.pem"
 			end
 		RUBY
 		git("add", "--all")
-		git("commit", "-m", "Gem source and public certificate")
+		git("commit", "-m", "Gem source with legacy signing settings")
 		File.write(File.join(root, "example.rb"), "DIRTY")
-		result = isolated_ruby(<<~'RUBY', chdir: root, env: {"GEM_SIGNING_KEY" => key.to_pem}, requires: ["bundler/setup", "bake/gem/github/publisher"])
+		result = isolated_ruby(<<~'RUBY', chdir: root, env: {"GEM_SIGNING_KEY" => nil}, requires: ["bundler/setup", "bake/gem/github/publisher"])
 			publisher = Bake::Gem::GitHub::Publisher.new(Dir.pwd)
-			publisher.config["signing"] = true
 			package_path = publisher.send(:build_package, File.join(Dir.pwd, "pkg"))
-			package = Gem::Package.new(package_path, Gem::Security::Policy.new("Release", only_trusted: false))
+			package = Gem::Package.new(package_path)
 			package.verify
 			package.extract_files("extracted")
-			{content: File.read("extracted/example.rb"), signer: OpenSSL::X509::Certificate.new(package.spec.cert_chain.last).to_der}
+			signatures = []
+			File.open(package_path, "rb") do |file|
+				Gem::Package::TarReader.new(file) do |tar|
+					tar.each{|entry| signatures << entry.full_name if entry.full_name.end_with?(".sig")}
+				end
+			end
+			{content: File.read("extracted/example.rb"), signatures: signatures}
 		RUBY
 		
 		expect(result[:content]).to be == "ORIGINAL"
-		expect(result[:signer]).to be == certificate.to_der
+		expect(result[:signatures]).to be == []
 	end
 end

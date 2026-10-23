@@ -66,11 +66,11 @@ bundle exec bake gem:github:setup:plan publisher=true
 
 This adds `trusted_publisher_status` to the plan, including `configured` and the matching registration. The default plan only reports expected RubyGems values and does not authenticate to RubyGems. Authentication, ownership, and API failures stop the task rather than being reported as a missing registration.
 
-For a gem that has never been published, configure a pending publisher manually. Account ownership, MFA enrollment, the GitHub environment, and signing bootstrap remain manual setup steps. See [RubyGems Trusted Publishing](https://guides.rubygems.org/trusted-publishing/) for account setup. Trusted Publishing supplies the publishing credential for each release, so a long-lived RubyGems API key is unnecessary.
+For a gem that has never been published, configure a pending publisher manually. Account ownership, MFA enrollment, and the GitHub environment remain manual setup steps. See [RubyGems Trusted Publishing](https://guides.rubygems.org/trusted-publishing/) for account setup. Trusted Publishing supplies the publishing credential for each release, so a long-lived RubyGems API key is unnecessary.
 
-When `release.cert` exists, setup enables certificate signing. Commit the public certificate and install its matching private key as `GEM_SIGNING_KEY`, either in the `rubygems` environment or as an organization secret available to the repository. The publisher checks certificate validity, key matching, and package signatures. Use `signing=false` during setup to disable certificate signing.
+Publishing builds gems without RubyGems certificate signatures. Sigstore and GitHub provenance attestations bind the package to its source and release workflow; no separate certificate or private signing key is required.
 
-Ensure another maintainer can administer the repository and recover its RubyGems account and signing key.
+Ensure another maintainer can administer the repository and recover its RubyGems account.
 
 ## Authorize publishing
 
@@ -132,6 +132,8 @@ git diff
 ```
 
 This updates managed files in the working tree and returns their changed paths. Review the diff and selectively retain repository customizations before committing. The task does not stage, commit, or change remote settings. Repeated updates produce no further changes unless customizations differ from the templates. Apply changed rulesets after the corresponding workflows are running.
+
+Updating removes the obsolete `signing` configuration and `GEM_SIGNING_KEY` workflow reference. The publisher ignores legacy certificate-signing settings and always builds unsigned packages. Remove `cert_chain`, `signing_key`, and unused public certificates from your gem project when migrating. Attestation verification and RubyGems Trusted Publishing remain required.
 
 To enable rebase merging on an existing installation, regenerate and merge `release-validate.yaml` so it runs `gem:github:release:validate`, which requires single-commit release PRs. Then review `gem:github:setup:plan` and run `gem:github:setup:apply` to allow rebase merging in the managed rules. Enable rebase merging in repository settings as well. Upgrading the gem alone does not update workflows or live rules.
 
