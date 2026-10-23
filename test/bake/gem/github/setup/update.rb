@@ -12,6 +12,20 @@ describe Bake::Gem::GitHub::Setup do
 	let(:setup) {subject.new(repository)}
 	
 	with "#update" do
+		it "removes legacy certificate signing configuration and workflow secrets" do
+			path = File.join(repository, "config/release.yaml")
+			config = YAML.safe_load_file(path).merge("signing" => true)
+			File.write(path, YAML.dump(config))
+			workflow_path = File.join(repository, ".github/workflows/release-publish.yaml")
+			File.write(workflow_path, File.read(workflow_path).sub("          GITHUB_TOKEN: ${{ github.token }}", "          GITHUB_TOKEN: ${{ github.token }}\n          GEM_SIGNING_KEY: ${{ secrets.GEM_SIGNING_KEY }}"))
+			File.write(File.join(repository, "release.cert"), "Legacy certificate")
+			
+			expect(setup.update.sort).to be == [".github/workflows/release-publish.yaml", "config/release.yaml"]
+			expect(YAML.safe_load_file(path)).to be == config.reject{|key, _| key == "signing"}
+			expect(File.read(workflow_path)).not.to be(:include?, "GEM_SIGNING_KEY")
+			expect(setup.update).to be == []
+		end
+		
 		it "leaves generated updates in the working tree for selective review" do
 			workflow = File.join(repository, ".github/workflows/release-validate.yaml")
 			File.write(workflow, "# Custom workflow\n" + File.read(workflow))

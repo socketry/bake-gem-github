@@ -15,9 +15,7 @@ Gem::Specification.new do |spec|
 		"changelog_uri" => "https://github.com/socketry/bake-gem-github/blob/main/releases.md",
 		"source_code_uri" => "https://github.com/socketry/bake-gem-github.git",
 	}
-	spec.cert_chain = ["release.cert"]
-	spec.signing_key = File.expand_path("~/.gem/socketry-release.pem")
-	spec.files = Dir.glob(["{bake,context,lib,templates}/**/*", "*.md", "release.cert"], base: __dir__)
+	spec.files = Dir.glob(["{bake,context,lib,templates}/**/*", "*.md"], base: __dir__)
 	spec.required_ruby_version = ">= 3.3"
 	spec.add_dependency "bake-gem", ">= 0.15.0"
 	spec.add_dependency "bake-releases", "~> 0.6"

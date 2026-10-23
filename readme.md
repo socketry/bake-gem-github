@@ -24,6 +24,11 @@ Please see the [project documentation](https://socketry.github.io/bake-gem-githu
 
 Please see the [project releases](https://socketry.github.io/bake-gem-github/releases/index) for all releases.
 
+### Unreleased
+
+  - Remove RubyGems certificate signing and its private-key requirement. Publishing always builds unsigned gems and verifies Sigstore and GitHub provenance attestations.
+  - Remove the setup `signing` option. Regenerate workflows with `gem:github:setup:update` to remove legacy configuration and signing-secret references.
+
 ### v0.6.0
 
   - Register RubyGems trusted publishers from the gemspec and release configuration with `gem:github:setup:publisher`, reusing existing registrations and RubyGems authentication/MFA support.
@@ -66,10 +71,6 @@ Please see the [project releases](https://socketry.github.io/bake-gem-github/rel
 
   - Preserve verified release files in a draft GitHub release before uploading to RubyGems, so reruns can recover when Actions artifacts disappear.
   - Wait for RubyGems registry propagation before finalizing releases.
-
-### v0.0.1
-
-  - Initial implementation.
 
 ## Contributing
 

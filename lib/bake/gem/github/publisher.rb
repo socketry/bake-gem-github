@@ -8,7 +8,6 @@ require_relative "backup"
 require_relative "registry"
 require "bake/releases"
 require "digest"
-require "openssl"
 
 module Bake
 	module Gem
@@ -28,7 +27,7 @@ module Bake
 				
 				# Build or restore this workflow run's artifact, after validating the actual merged commit.
 				# @parameter number [String | Integer] The merged release PR number.
-				# @returns [Hash] The release receipt. Extends {Project#inspect_release} metadata with `file`, `sha256`, `run_id`, and `signing`; writes the receipt to `pkg/release.json` and Actions outputs when configured.
+				# @returns [Hash] The release receipt. Extends {Project#inspect_release} metadata with `file`, `sha256`, and `run_id`; writes the receipt to `pkg/release.json` and Actions outputs when configured.
 				# @raises [RuntimeError] If the workflow identity, source, or retained artifact is invalid, or published bytes cannot be recovered.
 				def build(number)
 					guard_environment
@@ -165,7 +164,6 @@ module Bake
 						file: filename,
 						sha256: Digest::SHA256.file(package).hexdigest,
 						run_id: run,
-						signing: @config.fetch("signing"),
 					)
 					File.write(File.join(path, "release.json"), JSON.pretty_generate(receipt) + "\n")
 					
@@ -198,10 +196,8 @@ module Bake
 					end
 				end
 				
-				# Verify the optional certificate signature and both attestation formats.
+				# Verify both attestation formats.
 				def verify_artifact(package, bundle)
-					verify_certificate(package) if @config.fetch("signing")
-					
 					identity = "https://github.com/#{@repository}/.github/workflows/release-publish.yaml@refs/heads/#{@config.fetch('branch')}"
 					gem_command(
 						"exec", "sigstore-cli:0.2.3", "verify", package, "--bundle", bundle,
@@ -347,34 +343,8 @@ module Bake
 					raise "Publishing requires the default branch workflow." unless ENV["GITHUB_REF"] == "refs/heads/#{@config.fetch('branch')}"
 				end
 				
-				def verify_certificate(path)
-					policy = ::Gem::Security::Policy.new("Release", only_trusted: false)
-					package = ::Gem::Package.new(path, policy)
-					package.verify
-					
-					signer = OpenSSL::X509::Certificate.new(package.spec.cert_chain.last)
-					expected = OpenSSL::X509::Certificate.new(File.read(File.join(@root, "release.cert")))
-					raise "Package signer differs from release.cert." unless signer.to_der == expected.to_der
-				end
-				
 				def build_package(path)
-					unless @config.fetch("signing")
-						return @release.worktree("HEAD"){|source| @release.bake(source, "gem:build", root: path, signing_key: false)}
-					end
-					
-					certificate = OpenSSL::X509::Certificate.new(File.read(File.join(@root, "release.cert")))
-					key = OpenSSL::PKey.read(ENV.fetch("GEM_SIGNING_KEY"))
-					raise "Signing key does not match release.cert." unless certificate.check_private_key(key)
-					raise "Signing certificate is not currently valid." unless (certificate.not_before..certificate.not_after).cover?(Time.now)
-					
-					return Tempfile.create("gem-signing-key") do |file|
-						file.chmod(0600)
-						file.write(ENV.fetch("GEM_SIGNING_KEY"))
-						file.flush
-						package = @release.worktree("HEAD"){|source| @release.bake(source, "gem:build", root: path, signing_key: file.path)}
-						verify_certificate(package)
-						package
-					end
+					return @release.worktree("HEAD"){|source| @release.bake(source, "gem:build", root: path, signing_key: false)}
 				end
 				
 				def output(receipt, restored:)

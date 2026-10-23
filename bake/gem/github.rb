@@ -9,10 +9,9 @@
 # @parameter branch [String] Default branch name; discovered through GitHub when omitted.
 # @parameter approvals [Integer] Number of approving reviews.
 # @parameter reviewers [Array(String)] Publishing environment reviewers: user logins or organization/team names. Omit to leave environment settings unmanaged.
-# @parameter signing [Boolean] Require certificate signing; when omitted, enable it if `release.cert` exists.
 # @parameter ruby [String] Ruby version for release workflows.
 # @returns [Array(String)] Generated paths relative to the repository root.
-def setup(checks:, repository: nil, branch: nil, approvals: 2, reviewers: nil, signing: nil, ruby: "3.4")
+def setup(checks:, repository: nil, branch: nil, approvals: 2, reviewers: nil, ruby: "3.4")
 	require "bake/gem/github/setup"
 	require "bake/gem/shell"
 	
@@ -31,7 +30,6 @@ def setup(checks:, repository: nil, branch: nil, approvals: 2, reviewers: nil, s
 		reviewers: reviewers,
 		ruby: ruby,
 	}
-	options[:signing] = signing unless signing.nil?
 	
 	Bake::Gem::GitHub::Setup.new(context.root).generate(**options)
 end

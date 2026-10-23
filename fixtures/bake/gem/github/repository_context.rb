@@ -48,7 +48,7 @@ module Bake
 						end
 					RUBY
 					File.write(File.join(repository, ".gitignore"), "/pkg/\n")
-					Setup.new(repository).generate(repository: "socketry/example", checks: ["Tests"], signing: false)
+					Setup.new(repository).generate(repository: "socketry/example", checks: ["Tests"])
 					git("init", "--quiet", "--initial-branch=main")
 					git("config", "core.hooksPath", File::NULL)
 					git("config", "commit.gpgsign", "false")
